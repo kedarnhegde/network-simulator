@@ -6,7 +6,7 @@ run-backend:
 
 # Install backend dependencies
 install-backend:
-	pip install -r backend/server/requirements.txt
+	pip install -r backend/requirements.txt
 
 # --- Frontend (React/Vite) ---
 
@@ -33,7 +33,6 @@ help:
 	@echo "Available commands:"
 	@echo "  make run-backend        - Start FastAPI backend (reload on change)"
 	@echo "  make install-backend    - Install backend dependencies"
-	@echo "  make test-backend       - Run backend tests"
 	@echo "  make run-frontend       - Start React frontend"
 	@echo "  make install-frontend   - Install frontend dependencies"
 	@echo "  make clean              - Remove caches, build, and node_modules"
