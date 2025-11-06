@@ -8,18 +8,15 @@ _seq = itertools.count(1)
 
 @dataclass
 class MacConfig:
-    # CSMA/CA
     slot_ms: int = 10
     cw_min: int = 4
     cw_max: int = 32
     retry_limit: int = 4
     ack_delay_slots: int = 1
 
-    # Loss model
-    base_loss_prob: float = 0.0     # random channel loss
-    collision_losses: bool = True   # if >1 TX in a slot → all fail
+    base_loss_prob: float = 0.0     
+    collision_losses: bool = True  
 
-    # Queue
     queue_capacity: int = 64
 
 @dataclass
@@ -29,4 +26,4 @@ class Packet:
     size_bytes: int = 100
     kind: MacKind = "WiFi"
     seq: int = field(default_factory=lambda: next(_seq))
-    t_created: float = field(default_factory=time.time)  # seconds
+    t_created: float = field(default_factory=time.time) 
