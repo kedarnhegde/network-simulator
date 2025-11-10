@@ -85,7 +85,7 @@ def metrics():
     now = store.engine.now
     m = store.mac.metrics
     delivered = m.dequeued_ok
-    duplicates = m.duplicates
+    duplicates = m.duplicatesgit
     pdr = m.pdr
     avg_latency_ms = (m.rtt_ms_total / m.rtt_samples) if m.rtt_samples else 0.0
     return MetricsView(now=now, pdr=pdr, avgLatencyMs=avg_latency_ms, delivered=delivered, duplicates=duplicates)
