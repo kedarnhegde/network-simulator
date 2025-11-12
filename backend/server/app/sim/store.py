@@ -15,6 +15,7 @@ class Store:
         self.engine = Engine()
         self.mac = Mac(seed=123, cfg=MacConfig())  
         self._next_id = 1
+        self._next_seq = 1
         self._task: Optional[asyncio.Task] = None
         self._accum = 0.0  # for slot timing
 
@@ -35,15 +36,18 @@ class Store:
         self.engine = Engine()
         self.mac = Mac(seed=123, cfg=MacConfig())
         self._next_id = 1
+        self._next_seq = 1
         self.running = False
         self._accum = 0.0
     
     def enqueue(self, src_id: int, dst_id: int, n: int = 1, size: int = 100, kind: str = "WiFi") -> int:
         ok = 0
-        for _ in range:
+        for _ in range(n):
             if src_id not in [x.id for x in self.nodes]: break
             if dst_id not in [x.id for x in self.nodes]: break
-            if self.mac.enqueue(Packet(src_id=src_id, dst_id=dst_id, size_bytes=size, kind=kind)):
+            pkt = Packet(src_id=src_id, dst_id=dst_id, size_bytes=size, kind=kind, seq=self._next_seq, t_created=self.engine.now)
+            self._next_seq += 1
+            if self.mac.enqueue(pkt):
                 ok += 1
         return ok
 
