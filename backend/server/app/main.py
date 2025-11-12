@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from .sim.store import store
 from .sim.models import NodeCreate, NodeView, MetricsView
+from .sim.types import MacConfig
 import asyncio
 
 app = FastAPI(title="IoT/MQTT Simulator", version="0.1.0")
@@ -55,6 +56,11 @@ def delete_node(nid: int):
     store.remove_node(nid)
     return {"ok": True}
 
+@app.post("/traffic")
+def traffic(src: int, dst: int, n: int = 1, size: int = 100, kind: str = "WiFi"):
+    enq = store.enqueue(src_id=src, dst_id=dst, n=n, size=size, kind=kind)
+    return {"enqueued_ok": enq}
+
 # ---- control ----
 
 @app.post("/control/start")
@@ -77,8 +83,9 @@ def reset():
 @app.get("/metrics", response_model=MetricsView)
 def metrics():
     now = store.engine.now
-    delivered = len(store.logs)
-    duplicates = 0
-    pdr = 1.0 if delivered > 0 else 0.0  # placeholder; real calc in later PRs
-    avg_latency_ms = 0.0
+    m = store.mac.metrics
+    delivered = m.dequeued_ok
+    duplicates = m.duplicates
+    pdr = m.pdr
+    avg_latency_ms = (m.rtt_ms_total / m.rtt_samples) if m.rtt_samples else 0.0
     return MetricsView(now=now, pdr=pdr, avgLatencyMs=avg_latency_ms, delivered=delivered, duplicates=duplicates)
