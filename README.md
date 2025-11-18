@@ -73,6 +73,47 @@ By default, the servers run on:
 | `/control/pause`    | POST                | Pause the simulation                          |
 | `/control/reset`    | POST                | Reset the simulation                          |
 | `/metrics`          | GET                 | MAC layer metrics (PDR, latency, etc.)       |
+| `/routing`          | GET                 | Get all routing tables                       |
+| `/routing/{node_id}`| GET                 | Get routing table for specific node          |
+
+---
+
+## 🌐 Network Layer
+
+The simulator implements a **distance-vector routing protocol** with periodic route advertisements:
+
+- **Hop-count metric** - Routes chosen based on minimum hops
+- **Periodic route advertisements** - Nodes broadcast routing tables every 2 seconds
+- **Multi-hop forwarding** - Packets routed through intermediate nodes
+- **Automatic route discovery** - Routes built as nodes exchange advertisements
+
+**View Routing Tables:**
+```powershell
+# PowerShell - Get all routing tables
+Invoke-RestMethod http://localhost:8000/routing
+
+# PowerShell - Get routing table for node 1
+Invoke-RestMethod http://localhost:8000/routing/1
+
+# Unix/Mac/Linux
+curl http://localhost:8000/routing
+curl http://localhost:8000/routing/1
+```
+
+**Example routing table output:**
+```json
+{
+  "nodeId": 1,
+  "routes": [
+    {"dest": 2, "nextHop": 2, "metric": 1},
+    {"dest": 3, "nextHop": 2, "metric": 2}
+  ]
+}
+```
+
+This shows node 1 can reach:
+- Node 2 directly (1 hop)
+- Node 3 via node 2 (2 hops total)
 
 ---
 

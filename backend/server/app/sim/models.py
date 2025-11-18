@@ -70,3 +70,12 @@ class MetricsView(BaseModel):
     avgLatencyMs: float
     delivered: int
     duplicates: int
+
+class RouteEntryView(BaseModel):
+    dest: int
+    nextHop: int
+    metric: int
+
+class RoutingTableView(BaseModel):
+    nodeId: int
+    routes: List[RouteEntryView]
