@@ -7,39 +7,58 @@ Uses **backend (FastAPI)** and **frontend (React + Vite)**.
 
 ## ⚙️ Setup Instructions
 
-### 1️⃣ Clone the repository
-```bash
+### 🪟 Windows (PowerShell)
+
+```powershell
+# 1. Clone the repository
 git clone https://github.com/kedarnhegde/network-simulator.git
 cd network-simulator
+
+# 2. Create and activate virtual environment
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+# 3. Install backend dependencies
+pip install -r backend\requirements.txt
+
+# 4. Fix pydantic if needed (Python 3.14 compatibility)
+pip install --force-reinstall pydantic pydantic-core --no-cache-dir
 ```
 
-### 2️⃣ Create and activate virtual environment
+**Run Backend:**
+```powershell
+cd backend
+python -m uvicorn server.app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+**Run Frontend (separate terminal):**
+```powershell
+cd frontend
+npm install  # First time only
+npm run dev
+```
+
+### 🐧 Unix/Mac/Linux
+
 ```bash
+# 1. Clone the repository
+git clone https://github.com/kedarnhegde/network-simulator.git
+cd network-simulator
+
+# 2. Create and activate virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
+
+# 3. Install dependencies and run
+make install-backend
+make run-backend  # In one terminal
+make install-frontend
+make run-frontend  # In another terminal
 ```
 
-*(On Windows PowerShell):*
-```powershell
-.\.venv\Scripts\activate
-```
-
----
-
-## 🧩 Backend Setup
-
-### Install dependencies
-```bash
-make install-backend # Make sure you're in .venv 
-```
-
-### Run the FastAPI backend
-```bash
-make run-backend # Make sure you're in .venv 
-```
-
-By default, the backend runs on:  
-📍 **http://localhost:8000**
+By default, the servers run on:  
+📍 **Backend:** http://127.0.0.1:8000  
+📍 **Frontend:** http://localhost:5173
 
 ---
 
@@ -59,7 +78,30 @@ By default, the backend runs on:
 
 ## 🧪 Testing MAC Layer
 
-### Quick Test Sequence
+### Quick Test Sequence (PowerShell)
+
+```powershell
+# 1. Reset simulation
+Invoke-RestMethod -Method POST http://localhost:8000/control/reset
+
+# 2. Create 3 nodes (2 sensors + 1 broker)
+Invoke-RestMethod -Method POST http://localhost:8000/nodes -ContentType "application/json" -Body '{"role": "sensor", "phy": "WiFi", "x": 10, "y": 10}'
+Invoke-RestMethod -Method POST http://localhost:8000/nodes -ContentType "application/json" -Body '{"role": "sensor", "phy": "WiFi", "x": 20, "y": 20}'
+Invoke-RestMethod -Method POST http://localhost:8000/nodes -ContentType "application/json" -Body '{"role": "broker", "phy": "WiFi", "x": 30, "y": 30}'
+
+# 3. Start simulation
+Invoke-RestMethod -Method POST http://localhost:8000/control/start
+
+# 4. Generate traffic (tests CSMA/CA, collisions, retries)
+Invoke-RestMethod -Method POST "http://localhost:8000/traffic?src=1&dst=3&n=20&size=100&kind=WiFi"
+Invoke-RestMethod -Method POST "http://localhost:8000/traffic?src=2&dst=3&n=20&size=100&kind=WiFi"
+
+# 5. Wait and check metrics
+Start-Sleep -Seconds 5
+Invoke-RestMethod http://localhost:8000/metrics
+```
+
+### Quick Test Sequence (Unix/Mac/Linux - curl)
 
 ```bash
 # 1. Reset simulation
@@ -106,34 +148,58 @@ curl http://localhost:8000/metrics
 ### Individual Endpoint Tests
 
 **Health Check:**
-```bash
+```powershell
+# PowerShell
+Invoke-RestMethod http://localhost:8000/health
+
+# Unix/Mac/Linux
 curl http://localhost:8000/health
 ```
 
 **List Nodes:**
-```bash
+```powershell
+# PowerShell
+Invoke-RestMethod http://localhost:8000/nodes
+
+# Unix/Mac/Linux
 curl http://localhost:8000/nodes
 ```
 
 **Add Node (BLE):**
-```bash
+```powershell
+# PowerShell
+Invoke-RestMethod -Method POST http://localhost:8000/nodes -ContentType "application/json" -Body '{"role": "sensor", "phy": "BLE", "x": 15, "y": 25}'
+
+# Unix/Mac/Linux
 curl -X POST http://localhost:8000/nodes -H "Content-Type: application/json" \
   -d '{"role": "sensor", "phy": "BLE", "x": 15, "y": 25}'
 ```
 
 **Delete Node:**
-```bash
+```powershell
+# PowerShell
+Invoke-RestMethod -Method DELETE http://localhost:8000/nodes/1
+
+# Unix/Mac/Linux
 curl -X DELETE http://localhost:8000/nodes/1
 ```
 
 **Pause Simulation:**
-```bash
+```powershell
+# PowerShell
+Invoke-RestMethod -Method POST http://localhost:8000/control/pause
+
+# Unix/Mac/Linux
 curl -X POST http://localhost:8000/control/pause
 ```
 
 ### Traffic Parameters
 
-```bash
+```powershell
+# PowerShell
+Invoke-RestMethod -Method POST "http://localhost:8000/traffic?src=<SRC_ID>&dst=<DST_ID>&n=<COUNT>&size=<BYTES>&kind=<PHY>"
+
+# Unix/Mac/Linux
 curl -X POST "http://localhost:8000/traffic?src=<SRC_ID>&dst=<DST_ID>&n=<COUNT>&size=<BYTES>&kind=<PHY>"
 ```
 
@@ -145,18 +211,18 @@ curl -X POST "http://localhost:8000/traffic?src=<SRC_ID>&dst=<DST_ID>&n=<COUNT>&
 
 ---
 
-## 💻 Frontend Setup
+## 🧰 Available Commands
 
-```bash
-make install-frontend
-make run-frontend
-```
+### Windows (PowerShell)
 
-Default Vite dev server: **http://localhost:5173**
+| Task                    | Command                                                                                     |
+|-------------------------|---------------------------------------------------------------------------------------------|
+| Install backend         | `pip install -r backend\requirements.txt`                                                   |
+| Run backend             | `cd backend; python -m uvicorn server.app.main:app --reload --host 127.0.0.1 --port 8000` |
+| Install frontend        | `cd frontend; npm install`                                                                  |
+| Run frontend            | `cd frontend; npm run dev`                                                                  |
 
----
-
-## 🧰 Available Makefile Commands
+### Unix/Mac/Linux (Makefile)
 
 | Command                 | Description                                      |
 |-------------------------|--------------------------------------------------|
@@ -166,15 +232,6 @@ Default Vite dev server: **http://localhost:5173**
 | `make install-frontend` | Install frontend dependencies                     |
 | `make clean`            | Remove cache, build, and node_modules             |
 | `make help`             | Show available commands                            |
-
----
-
-## 🧹 Cleaning Up
-
-Remove Python caches, build artifacts, and node modules:
-```bash
-make clean
-```
 
 ---
 
