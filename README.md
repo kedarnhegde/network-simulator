@@ -1,184 +1,161 @@
 # 🛰️ Network Simulator
 
-A modular simulation platform built for the **CS-576 project**.  
-Uses **backend (FastAPI)** and **frontend (React + Vite)**.
+A modular **IoT network simulator** built for **CS-576**.  
+Implements **Physical**, **MAC**, and **Network** layers using a FastAPI backend and a React + Vite frontend.
 
 ---
 
-## ⚙️ Setup Instructions
+## ⚙️ Setup
 
-### 1️⃣ Clone the repository
+### 🪟 Windows (PowerShell)
+```powershell
+git clone https://github.com/kedarnhegde/network-simulator.git
+cd network-simulator
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r backend\requirements.txt
+pip install --force-reinstall pydantic pydantic-core --no-cache-dir  # if needed
+cd backend
+python -m uvicorn server.app.main:app --reload --port 8000
+```
+
+### 🐧 Mac/Linux
 ```bash
 git clone https://github.com/kedarnhegde/network-simulator.git
 cd network-simulator
-```
-
-### 2️⃣ Create and activate virtual environment
-```bash
 python3 -m venv .venv
 source .venv/bin/activate
+make install-backend
+make run-backend
 ```
 
-*(On Windows PowerShell):*
-```powershell
-.\.venv\Scripts\activate
-```
-
----
-
-## 🧩 Backend Setup
-
-### Install dependencies
-```bash
-make install-backend # Make sure you're in .venv 
-```
-
-### Run the FastAPI backend
-```bash
-make run-backend # Make sure you're in .venv 
-```
-
-By default, the backend runs on:  
-📍 **http://localhost:8000**
-
----
-
-## 🧪 API Endpoints
-
-| Endpoint            | Method              | Description                                 |
-|---------------------|---------------------|---------------------------------------------|
-| `/health`           | GET                 | Health check (returns `{"status":"ok"}`)    |
-| `/nodes`            | GET / POST / DELETE | Manage network nodes                         |
-| `/traffic`          | POST                | Enqueue packets for MAC layer transmission   |
-| `/control/start`    | POST                | Start the simulation                         |
-| `/control/pause`    | POST                | Pause the simulation                          |
-| `/control/reset`    | POST                | Reset the simulation                          |
-| `/metrics`          | GET                 | MAC layer metrics (PDR, latency, etc.)       |
-
----
-
-## 🧪 Testing MAC Layer
-
-### Quick Test Sequence
-
-```bash
-# 1. Reset simulation
-curl -X POST http://localhost:8000/control/reset
-
-# 2. Create 3 nodes (2 sensors + 1 broker)
-curl -X POST http://localhost:8000/nodes -H "Content-Type: application/json" \
-  -d '{"role": "sensor", "phy": "WiFi", "x": 10, "y": 10}'
-curl -X POST http://localhost:8000/nodes -H "Content-Type: application/json" \
-  -d '{"role": "sensor", "phy": "WiFi", "x": 20, "y": 20}'
-curl -X POST http://localhost:8000/nodes -H "Content-Type: application/json" \
-  -d '{"role": "broker", "phy": "WiFi", "x": 30, "y": 30}'
-
-# 3. Start simulation
-curl -X POST http://localhost:8000/control/start
-
-# 4. Generate traffic (tests CSMA/CA, collisions, retries)
-curl -X POST "http://localhost:8000/traffic?src=1&dst=3&n=20&size=100&kind=WiFi"
-curl -X POST "http://localhost:8000/traffic?src=2&dst=3&n=20&size=100&kind=WiFi"
-
-# 5. Wait and check metrics
-sleep 5
-curl http://localhost:8000/metrics
-```
-
-### Expected Metrics Output
-
-```json
-{
-  "now": 4.8,
-  "pdr": 1.0,
-  "avgLatencyMs": 922.75,
-  "delivered": 40,
-  "duplicates": 0
-}
-```
-
-**Metrics Explained:**
-- `pdr` - Packet Delivery Ratio (0.0 to 1.0)
-- `avgLatencyMs` - Average end-to-end latency in milliseconds
-- `delivered` - Total packets successfully delivered
-- `duplicates` - Duplicate packets detected
-
-### Individual Endpoint Tests
-
-**Health Check:**
-```bash
-curl http://localhost:8000/health
-```
-
-**List Nodes:**
-```bash
-curl http://localhost:8000/nodes
-```
-
-**Add Node (BLE):**
-```bash
-curl -X POST http://localhost:8000/nodes -H "Content-Type: application/json" \
-  -d '{"role": "sensor", "phy": "BLE", "x": 15, "y": 25}'
-```
-
-**Delete Node:**
-```bash
-curl -X DELETE http://localhost:8000/nodes/1
-```
-
-**Pause Simulation:**
-```bash
-curl -X POST http://localhost:8000/control/pause
-```
-
-### Traffic Parameters
-
-```bash
-curl -X POST "http://localhost:8000/traffic?src=<SRC_ID>&dst=<DST_ID>&n=<COUNT>&size=<BYTES>&kind=<PHY>"
-```
-
-- `src` - Source node ID
-- `dst` - Destination node ID
-- `n` - Number of packets (default: 1)
-- `size` - Packet size in bytes (default: 100)
-- `kind` - PHY type: WiFi, BLE, or Zigbee (default: WiFi)
-
----
-
-## 💻 Frontend Setup
-
+Frontend (Not completed yet):
 ```bash
 make install-frontend
 make run-frontend
 ```
 
-Default Vite dev server: **http://localhost:5173**
+**Default ports:**  
+📍 Backend → http://127.0.0.1:8000  
+📍 Frontend → http://localhost:5173
 
 ---
 
-## 🧰 Available Makefile Commands
+## 🧪 API Endpoints
 
-| Command                 | Description                                      |
-|-------------------------|--------------------------------------------------|
-| `make run-backend`      | Start FastAPI backend with auto-reload           |
-| `make install-backend`  | Install backend dependencies                      |
-| `make run-frontend`     | Start React frontend                              |
-| `make install-frontend` | Install frontend dependencies                     |
-| `make clean`            | Remove cache, build, and node_modules             |
-| `make help`             | Show available commands                            |
+| Endpoint | Method | Description |
+|-----------|---------|-------------|
+| `/health` | GET | Health check |
+| `/nodes` | GET/POST/DELETE | Manage network nodes |
+| `/control/start` | POST | Start simulation |
+| `/control/pause` | POST | Pause simulation |
+| `/control/reset` | POST | Reset simulation |
+| `/traffic` | POST | Send packets through MAC/Network layers |
+| `/metrics` | GET | Simulation metrics |
+| `/routing` | GET | All routing tables |
+| `/routing/{id}` | GET | Routing table for a node |
 
 ---
 
-## 🧹 Cleaning Up
+## 🧱 Architecture Overview
 
-Remove Python caches, build artifacts, and node modules:
-```bash
-make clean
+```
+┌────────────────────────────┐
+│ Application Layer          │  → traffic via /traffic API
+└──────────────┬─────────────┘
+               ↓
+┌────────────────────────────┐
+│ Network Layer              │
+│ - Distance-vector routing  │
+│ - Multi-hop forwarding     │
+└──────────────┬─────────────┘
+               ↓
+┌────────────────────────────┐
+│ MAC Layer (CSMA/CA)        │
+│ - Backoff, retries, loss   │
+└──────────────┬─────────────┘
+               ↓
+┌────────────────────────────┐
+│ Physical Layer             │
+│ - WiFi, BLE, Zigbee models │
+│ - Range, data rate, energy │
+└────────────────────────────┘
 ```
 
 ---
 
-## 👥 Contributors
+## 🧩 Testing (PHY → MAC → Network)
 
+### 1️⃣ PHY — Range & Energy
+```bash
+curl -X POST http://localhost:8000/control/reset
+curl -X POST http://localhost:8000/nodes -H "content-type: application/json" \
+  -d '{"role":"sensor","phy":"WiFi","x":10,"y":10}'
+curl -X POST http://localhost:8000/nodes -H "content-type: application/json" \
+  -d '{"role":"broker","phy":"WiFi","x":40,"y":40}'
+curl -X POST http://localhost:8000/nodes -H "content-type: application/json" \
+  -d '{"role":"sensor","phy":"BLE","x":500,"y":500}'
+curl -X POST http://localhost:8000/control/start
+sleep 3
+curl http://localhost:8000/metrics
+```
+👉 *Expect:* `now` > 0 s; energy decreases over time; distant node not connected.
+
+---
+
+### 2️⃣ MAC — Channel Contention
+```bash
+curl -X POST http://localhost:8000/control/reset
+curl -X POST http://localhost:8000/nodes -H "content-type: application/json" \
+  -d '{"role":"broker","phy":"WiFi","x":100,"y":100}'
+for i in 1 2 3 4 5; do
+  X=$((100+i*2)); Y=$((100+i))
+  curl -s -X POST http://localhost:8000/nodes -H "content-type: application/json" \
+    -d "{\"role\":\"sensor\",\"phy\":\"WiFi\",\"x\":$X,\"y\":$Y}"
+done
+curl -X POST http://localhost:8000/control/start
+curl -X POST "http://localhost:8000/traffic?src=2&dst=1&n=50&size=200&kind=WiFi"
+sleep 3
+curl http://localhost:8000/metrics
+```
+👉 *Expect:* latency ↑, possible delivery variation (PDR < 1) under heavy contention.
+
+---
+
+### 3️⃣ Network — Multi-Hop Routing
+```bash
+curl -X POST http://localhost:8000/control/reset
+curl -X POST http://localhost:8000/nodes -H "content-type: application/json" \
+  -d '{"role":"sensor","phy":"BLE","x":10,"y":10}'
+curl -X POST http://localhost:8000/nodes -H "content-type: application/json" \
+  -d '{"role":"sensor","phy":"BLE","x":25,"y":10}'
+curl -X POST http://localhost:8000/nodes -H "content-type: application/json" \
+  -d '{"role":"sensor","phy":"BLE","x":40,"y":10}'
+curl -X POST http://localhost:8000/control/start
+sleep 5
+curl http://localhost:8000/routing | jq .
+curl -X POST "http://localhost:8000/traffic?src=1&dst=3&n=20&size=100&kind=BLE"
+sleep 3
+curl http://localhost:8000/metrics | jq .
+```
+👉 *Expect:* routes show 1 → 3 via 2, `delivered` > 0, non-zero latency (multi-hop).
+
+---
+
+## 📈 Metrics Explained
+| Field | Meaning |
+|--------|----------|
+| `now` | Simulation time |
+| `pdr` | Packet delivery ratio (0–1) |
+| `avgLatencyMs` | Average latency (ms) |
+| `delivered` | Packets delivered |
+| `duplicates` | Duplicate packets seen |
+
+---
+
+## 👥 Contributors
 - [@kedarnhegde](https://github.com/kedarnhegde)  
-- Group 6 — CS-576, Fall 2025
+- [@AntonioHengel7](https://github.com/AntonioHengel7)
+- [@maleaysabel](https://github.com/maleaysabel)
+- [@clinton5609](https://github.com/clinton5609)
+- Group 6 — CS-576 Fall 2025
