@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal, Set, List, Dict
 
-Role = Literal["sensor", "subscriber", "mobile", "broker"]
+Role = Literal["sensor", "subscriber", "mobile", "broker", "publisher"]
 PHYType = Literal["WiFi", "BLE"]
 
 @dataclass

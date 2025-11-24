@@ -47,20 +47,13 @@ class Store:
         self._accum = 0.0
     
     def enqueue(self, src_id: int, dst_id: int, n: int = 1, size: int = 100, kind: str = "WiFi") -> int:
-        """Enqueue packets with network layer routing"""
+        """Enqueue packets for MAC layer transmission"""
         ok = 0
         for _ in range(n):
             if src_id not in [x.id for x in self.nodes]: break
             if dst_id not in [x.id for x in self.nodes]: break
             
-            # Check if we have a route to destination
-            next_hop = self.network.get_next_hop(src_id, dst_id)
-            if not next_hop and src_id != dst_id:
-                # No route available yet - skip for now
-                # (routes will be built via periodic advertisements)
-                continue
-            
-            # If src == dst or we have a route, create packet
+            # Create packet and enqueue to MAC layer
             pkt = Packet(src_id=src_id, dst_id=dst_id, size_bytes=size, kind=kind, seq=self._next_seq, t_created=self.engine.now)
             self._next_seq += 1
             if self.mac.enqueue(pkt):
