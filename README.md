@@ -153,6 +153,55 @@ curl http://localhost:8000/metrics | jq .
 
 ---
 
+## 🎨 Testing Packet Visualization in UI
+
+### Step-by-Step Guide:
+
+1. **Start Backend**
+   ```bash
+   source .venv/bin/activate
+   make run-backend
+   ```
+
+2. **Start Frontend** (in new terminal)
+   ```bash
+   cd frontend
+   npm install  # first time only
+   npm run dev
+   ```
+
+3. **Open Browser**
+   - Navigate to http://localhost:5173
+
+4. **Create Nodes**
+   - Click "Add Node" or use the API
+   - Create at least 2 nodes (e.g., sensor at x=100, y=100 and broker at x=400, y=300)
+
+5. **Start Simulation**
+   - Click "Start" button in the Controls panel
+
+6. **Send Traffic**
+   - In the Traffic panel:
+     - Set **Src**: 1 (source node ID)
+     - Set **Dst**: 2 (destination node ID)
+     - Set **N**: 10 (number of packets)
+     - Set **PHY**: WiFi or BLE
+   - Click "Send" button
+
+7. **Watch Packets Move!**
+   - You'll see small glowing dots (packets) animate from source to destination
+   - **Blue dots** = WiFi packets
+   - **Purple dots** = BLE packets
+   - Up to 5 packets will be visualized at once
+
+**Node Colors:**
+- 🟢 Green = Sensor
+- 🟠 Amber = Subscriber
+- 🩷 Pink = Publisher
+- 🩵 Teal = Broker (with yellow ring)
+
+---
+
 ## 👥 Contributors
 - [@kedarnhegde](https://github.com/kedarnhegde)  
 - [@AntonioHengel7](https://github.com/AntonioHengel7)
