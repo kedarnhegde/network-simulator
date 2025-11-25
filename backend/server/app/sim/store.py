@@ -1,6 +1,6 @@
 from __future__ import annotations
 import asyncio
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Dict
 from .models import Node, Position
 from .engine import Engine
 import math
@@ -8,6 +8,7 @@ import math
 from .mac import Mac
 from .types import Packet, MacConfig
 from .network import NetworkLayer, RouteAdvertisement
+from .mqtt import MqttBroker, MqttClient, MqttMessage
 
 class Store:
     def __init__(self):
@@ -17,10 +18,14 @@ class Store:
         self.engine = Engine()
         self.mac = Mac(seed=123, cfg=MacConfig(), range_checker=self._check_range, forward_callback=self._forward_packet)  
         self.network = NetworkLayer()  # Network layer routing
+        self.mqtt_brokers: Dict[int, MqttBroker] = {}  # node_id -> MqttBroker
+        self.mqtt_clients: Dict[int, MqttClient] = {}  # node_id -> MqttClient
         self._next_id = 1
         self._next_seq = 1
+        self._next_msg_id = 1
         self._task: Optional[asyncio.Task] = None
         self._accum = 0.0  # for slot timing
+        self._mqtt_accum = 0.0  # for MQTT processing
     
     def _check_range(self, src_id: int, dst_id: int) -> bool:
         """Check if two nodes are within PHY range of each other"""
@@ -68,6 +73,13 @@ class Store:
         kind = "BLE" if phy == "BLE" else ("WiFi" if phy == "WiFi" else "Zigbee")
         self.mac.add_node(node_id=nid, kind=kind)
         self.network.init_node(nid)  # Initialize network layer routing
+        
+        # Initialize MQTT components
+        if role == "broker":
+            self.mqtt_brokers[nid] = MqttBroker(nid)
+        elif role in ["publisher", "subscriber"]:
+            self.mqtt_clients[nid] = MqttClient(nid, role)
+        
         return nid
 
     def remove_node(self, nid: int):
@@ -80,10 +92,14 @@ class Store:
         self.engine = Engine()
         self.mac = Mac(seed=123, cfg=MacConfig(), range_checker=self._check_range, forward_callback=self._forward_packet)
         self.network = NetworkLayer()  # Reset network layer
+        self.mqtt_brokers.clear()
+        self.mqtt_clients.clear()
         self._next_id = 1
         self._next_seq = 1
+        self._next_msg_id = 1
         self.running = False
         self._accum = 0.0
+        self._mqtt_accum = 0.0
     
     def enqueue(self, src_id: int, dst_id: int, n: int = 1, size: int = 100, kind: str = "WiFi") -> int:
         """Enqueue packets for MAC layer transmission"""
@@ -142,6 +158,8 @@ class Store:
         # basic discrete time loop
         dt = 0.02
         slot_s = self.mac.cfg.slot_ms / 1000.0
+        mqtt_interval = 0.1  # Process MQTT every 100ms
+        
         while True:
             if self.running:
                 self.engine.tick(self.nodes, dt)
@@ -163,6 +181,23 @@ class Store:
                 while self._accum >= slot_s:
                     self.mac.tick()
                     self._accum -= slot_s
+                
+                # MQTT layer: process messages and retransmissions
+                self._mqtt_accum += dt
+                if self._mqtt_accum >= mqtt_interval:
+                    self._process_mqtt()
+                    self._mqtt_accum = 0.0
             await asyncio.sleep(dt)
+    
+    def _process_mqtt(self):
+        """Process MQTT messages and retransmissions"""
+        for broker_id, broker in self.mqtt_brokers.items():
+            # Check for retransmissions (QoS 1)
+            retransmissions = broker.check_retransmissions(self.engine.now)
+            for sub_id, dup_msg in retransmissions:
+                if sub_id in self.mqtt_clients:
+                    ack_msg_id = self.mqtt_clients[sub_id].receive_message(dup_msg)
+                    if ack_msg_id:
+                        broker.receive_ack(ack_msg_id, sub_id)
 
 store = Store()

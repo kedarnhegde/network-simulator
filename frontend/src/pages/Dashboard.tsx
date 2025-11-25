@@ -5,6 +5,7 @@ import Controls from "../components/Controls";
 import MetricsPanel from "../components/MetricsPanel";
 import RoutingPanel from "../components/RoutingPanel";
 import TrafficForm from "../components/TrafficForm";
+import MqttPanel from "../components/MqttPanel";
 
 export default function Dashboard() {
   const { data: nodes } = useQuery({ queryKey: ["nodes"], queryFn: getNodes, refetchInterval: 1000 });
@@ -32,6 +33,7 @@ export default function Dashboard() {
         </div>
         <div className="col-span-3 space-y-4">
           <MetricsPanel />
+          <MqttPanel />
           <RoutingPanel />
         </div>
       </div>

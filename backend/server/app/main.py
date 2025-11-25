@@ -117,3 +117,105 @@ def get_all_routing_tables():
         ]
         tables.append(RoutingTableView(nodeId=node.id, routes=routes))
     return tables
+
+# ---- MQTT ----
+
+@app.post("/mqtt/subscribe")
+def mqtt_subscribe(client_id: int, topic: str, qos: int = 0):
+    """Subscribe a client to an MQTT topic"""
+    if client_id not in store.mqtt_clients:
+        raise HTTPException(status_code=404, detail="client not found")
+    
+    client = store.mqtt_clients[client_id]
+    client.subscribed_topics.add(topic)
+    
+    # Find broker (assume first broker for now)
+    broker_id = next(iter(store.mqtt_brokers.keys()), None)
+    if not broker_id:
+        raise HTTPException(status_code=404, detail="no broker available")
+    
+    broker = store.mqtt_brokers[broker_id]
+    retained_msgs = broker.subscribe(client_id, topic, qos)
+    
+    return {"ok": True, "topic": topic, "retained_messages": len(retained_msgs)}
+
+@app.post("/mqtt/publish")
+def mqtt_publish(publisher_id: int, topic: str, payload: str, qos: int = 0, retained: bool = False):
+    """Publish an MQTT message"""
+    if publisher_id not in store.mqtt_clients:
+        raise HTTPException(status_code=404, detail="publisher not found")
+    
+    # Find broker
+    broker_id = next(iter(store.mqtt_brokers.keys()), None)
+    if not broker_id:
+        raise HTTPException(status_code=404, detail="no broker available")
+    
+    client = store.mqtt_clients[publisher_id]
+    msg_id = store._next_msg_id
+    store._next_msg_id += 1
+    
+    message = client.publish_message(topic, payload, qos, retained, msg_id)
+    broker = store.mqtt_brokers[broker_id]
+    deliveries = broker.publish(message)
+    
+    # Actually deliver messages to subscribers
+    delivered_count = 0
+    for sub_id, msg in deliveries:
+        if sub_id in store.mqtt_clients:
+            ack_msg_id = store.mqtt_clients[sub_id].receive_message(msg)
+            if ack_msg_id:
+                broker.receive_ack(ack_msg_id, sub_id)
+            delivered_count += 1
+    
+    return {"ok": True, "msg_id": msg_id, "subscribers": delivered_count}
+
+@app.get("/mqtt/stats")
+def mqtt_stats():
+    """Get MQTT statistics"""
+    broker_stats = {}
+    for broker_id, broker in store.mqtt_brokers.items():
+        broker_stats[broker_id] = broker.stats
+    
+    client_stats = {}
+    for client_id, client in store.mqtt_clients.items():
+        client_stats[client_id] = {
+            "role": client.role,
+            "subscribed_topics": list(client.subscribed_topics),
+            "stats": client.stats
+        }
+    
+    return {
+        "brokers": broker_stats,
+        "clients": client_stats
+    }
+
+@app.post("/mqtt/reset")
+def mqtt_reset():
+    """Reset MQTT subscriptions and stats"""
+    for broker in store.mqtt_brokers.values():
+        broker.subscriptions.clear()
+        broker.retained_messages.clear()
+        broker.pending_acks.clear()
+        broker.message_queue.clear()
+        broker.stats = {
+            'messages_received': 0,
+            'messages_delivered': 0,
+            'qos0_messages': 0,
+            'qos1_messages': 0,
+            'duplicates_sent': 0,
+            'acks_received': 0,
+            'queue_depth': 0
+        }
+    
+    for client in store.mqtt_clients.values():
+        client.subscribed_topics.clear()
+        client.received_messages.clear()
+        client.received_msg_ids.clear()
+        client.stats = {
+            'messages_published': 0,
+            'messages_received': 0,
+            'duplicates_received': 0,
+            'acks_sent': 0
+        }
+    
+    return {"ok": True}
