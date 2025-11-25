@@ -23,6 +23,7 @@ export default function TopologyCanvas({ nodes, width = 1200, height = 700, onDe
   const [packets, setPackets] = useState<PacketInFlight[]>([]);
   const packetsRef = useRef<PacketInFlight[]>([]);
   const [hoveredNode, setHoveredNode] = useState<number | null>(null);
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; node: NodeView } | null>(null);
 
   useEffect(() => {
     packetsRef.current = packets;
@@ -189,6 +190,7 @@ export default function TopologyCanvas({ nodes, width = 1200, height = 700, onDe
     
     // Check if hovering over a node
     let foundNode: number | null = null;
+    let foundNodeData: NodeView | null = null;
     for (const n of nodes) {
       const nodeX = n.x * SCALE;
       const nodeY = n.y * SCALE;
@@ -196,24 +198,42 @@ export default function TopologyCanvas({ nodes, width = 1200, height = 700, onDe
       
       if (distance <= 16) {
         foundNode = n.id;
+        foundNodeData = n;
         break;
       }
     }
     
     setHoveredNode(foundNode);
+    if (foundNodeData) {
+      setTooltip({ x: e.clientX, y: e.clientY, node: foundNodeData });
+    } else {
+      setTooltip(null);
+    }
   };
 
   return (
-    <div className="rounded-2xl overflow-hidden shadow-xl border border-slate-700">
+    <div className="relative rounded-2xl overflow-hidden shadow-xl border border-slate-700">
       <canvas 
         ref={ref} 
         width={width} 
         height={height} 
         onClick={handleCanvasClick}
         onMouseMove={handleCanvasMove}
-        onMouseLeave={() => setHoveredNode(null)}
+        onMouseLeave={() => { setHoveredNode(null); setTooltip(null); }}
         style={{ cursor: hoveredNode ? 'pointer' : 'default' }}
       />
+      {tooltip && (
+        <div 
+          className="fixed z-50 bg-slate-800 border border-slate-600 rounded px-3 py-2 text-xs text-white shadow-lg pointer-events-none"
+          style={{ left: tooltip.x + 10, top: tooltip.y + 10 }}
+        >
+          <div className="font-semibold mb-1">Node {tooltip.node.id}</div>
+          <div className="text-slate-300">Role: {tooltip.node.role}</div>
+          <div className="text-slate-300">PHY: {tooltip.node.phy}</div>
+          <div className="text-slate-300">Position: ({tooltip.node.x.toFixed(0)}, {tooltip.node.y.toFixed(0)})</div>
+          <div className="text-slate-300">Energy: {tooltip.node.energy.toFixed(1)}%</div>
+        </div>
+      )}
     </div>
   );
 }

@@ -14,20 +14,25 @@ export default function TrafficForm() {
     setMsg("Sending…");
     try {
       const r = await postTraffic({ src, dst, n, size, kind });
-      setMsg(`OK: ${JSON.stringify(r)}`);
+      const enqueued = r.enqueued_ok || 0;
+      setMsg(`OK: ${enqueued}/${n} packets enqueued`);
       
-      // Trigger packet visualization
-      console.log("Triggering packet visualization", { src, dst, n, kind });
-      if ((window as any).addPacket) {
-        const numToShow = Math.min(n, 5);
-        for (let i = 0; i < numToShow; i++) {
-          setTimeout(() => {
-            console.log(`Adding packet ${i + 1}/${numToShow}`);
-            (window as any).addPacket(src, dst, kind);
-          }, i * 300);
+      // Only trigger packet visualization if packets were actually enqueued
+      if (enqueued > 0) {
+        console.log("Triggering packet visualization", { src, dst, n: enqueued, kind });
+        if ((window as any).addPacket) {
+          const numToShow = Math.min(enqueued, 5);
+          for (let i = 0; i < numToShow; i++) {
+            setTimeout(() => {
+              console.log(`Adding packet ${i + 1}/${numToShow}`);
+              (window as any).addPacket(src, dst, kind);
+            }, i * 300);
+          }
+        } else {
+          console.error("addPacket function not available");
         }
       } else {
-        console.error("addPacket function not available");
+        setMsg(`Failed: PHY mismatch or nodes out of range`);
       }
     } catch (e:any) {
       setMsg(`Error: ${e?.message ?? e}`);
@@ -49,6 +54,7 @@ export default function TrafficForm() {
         </label>
       </div>
       <button onClick={submit} className="mt-3 px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-500">Send</button>
+      <div className="mt-2 text-xs text-slate-400">⚠️ PHY must match source node's PHY type</div>
       {msg && <div className="text-xs text-slate-300 mt-2 break-all">{msg}</div>}
     </div>
   );

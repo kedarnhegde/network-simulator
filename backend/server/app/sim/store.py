@@ -15,12 +15,51 @@ class Store:
         self.logs = []  # DeliveryLog list (empty in PR1)
         self.running: bool = False
         self.engine = Engine()
-        self.mac = Mac(seed=123, cfg=MacConfig())  
+        self.mac = Mac(seed=123, cfg=MacConfig(), range_checker=self._check_range, forward_callback=self._forward_packet)  
         self.network = NetworkLayer()  # Network layer routing
         self._next_id = 1
         self._next_seq = 1
         self._task: Optional[asyncio.Task] = None
         self._accum = 0.0  # for slot timing
+    
+    def _check_range(self, src_id: int, dst_id: int) -> bool:
+        """Check if two nodes are within PHY range of each other"""
+        src = next((n for n in self.nodes if n.id == src_id), None)
+        dst = next((n for n in self.nodes if n.id == dst_id), None)
+        if not src or not dst:
+            return False
+        from .engine import in_range
+        return in_range(src, dst)
+    
+    def _forward_packet(self, pkt: Packet):
+        """Forward packet to next hop (multi-hop routing)"""
+        current_hop = pkt.next_hop_id
+        final_dest = pkt.dst_id
+        
+        # Get next hop from current node's routing table
+        next_hop = self.network.get_next_hop(current_hop, final_dest)
+        if not next_hop:
+            # No route available, drop packet
+            return
+        
+        # Check if next hop is reachable
+        if not self._check_range(current_hop, next_hop):
+            # Out of range, drop packet
+            return
+        
+        # Create forwarded packet with current hop as new source for MAC layer
+        forwarded_pkt = Packet(
+            src_id=current_hop,  # Current hop becomes MAC source
+            dst_id=pkt.dst_id,   # Keep final destination
+            size_bytes=pkt.size_bytes,
+            kind=pkt.kind,
+            seq=pkt.seq,
+            t_created=pkt.t_created,
+            next_hop_id=next_hop  # Next hop in the route
+        )
+        
+        # Enqueue at current hop for forwarding
+        self.mac.enqueue(forwarded_pkt)
 
     def add_node(self, role: str, phy: str, x: float, y: float) -> int:
         nid = self._next_id; self._next_id += 1
@@ -39,7 +78,7 @@ class Store:
         self.nodes.clear()
         self.logs.clear()
         self.engine = Engine()
-        self.mac = Mac(seed=123, cfg=MacConfig())
+        self.mac = Mac(seed=123, cfg=MacConfig(), range_checker=self._check_range, forward_callback=self._forward_packet)
         self.network = NetworkLayer()  # Reset network layer
         self._next_id = 1
         self._next_seq = 1
@@ -49,12 +88,38 @@ class Store:
     def enqueue(self, src_id: int, dst_id: int, n: int = 1, size: int = 100, kind: str = "WiFi") -> int:
         """Enqueue packets for MAC layer transmission"""
         ok = 0
+        
+        # Validate source and destination nodes exist
+        src_node = next((x for x in self.nodes if x.id == src_id), None)
+        dst_node = next((x for x in self.nodes if x.id == dst_id), None)
+        if not src_node or not dst_node:
+            return 0
+        
+        # Validate PHY type matches source node's PHY
+        if src_node.phy != kind:
+            # PHY mismatch - source node can't transmit this type
+            return 0
+        
+        # Determine next hop for routing
+        next_hop = self.network.get_next_hop(src_id, dst_id)
+        if not next_hop:
+            next_hop = dst_id  # Direct transmission
+        
+        # Check if source can reach next hop
+        if not self._check_range(src_id, next_hop):
+            return 0
+        
         for _ in range(n):
-            if src_id not in [x.id for x in self.nodes]: break
-            if dst_id not in [x.id for x in self.nodes]: break
-            
-            # Create packet and enqueue to MAC layer
-            pkt = Packet(src_id=src_id, dst_id=dst_id, size_bytes=size, kind=kind, seq=self._next_seq, t_created=self.engine.now)
+            # Create packet with next_hop_id for MAC layer
+            pkt = Packet(
+                src_id=src_id, 
+                dst_id=dst_id,  # Final destination
+                size_bytes=size, 
+                kind=kind, 
+                seq=self._next_seq, 
+                t_created=self.engine.now,
+                next_hop_id=next_hop  # MAC destination
+            )
             self._next_seq += 1
             if self.mac.enqueue(pkt):
                 ok += 1

@@ -94,7 +94,7 @@ class Mac:
     """"
     Main MAC engine
     """
-    def __init__(self, seed: int = 123, cfg: Optional[MacConfig] = None):
+    def __init__(self, seed: int = 123, cfg: Optional[MacConfig] = None, range_checker=None, forward_callback=None):
         self.cfg = cfg or MacConfig()                               # initializer 
         self.rng = random.Random(seed)
         self.channel = Channel()
@@ -102,6 +102,8 @@ class Mac:
         self.metrics = MacMetrics()
         self.seen: Set[Tuple[int, int, int]] = set()
         self.slot_index = 0
+        self.range_checker = range_checker  # Callback to check if nodes are in range
+        self.forward_callback = forward_callback  # Callback to forward packets at intermediate nodes
 
     def add_node(self, node_id: int, kind: MacKind = "WiFi"):
         if node_id in self.nodes: return                            # reguster node with empty TxQueue
@@ -147,8 +149,13 @@ class Mac:
             pkt = st.awaiting_ack
             assert pkt is not None
 
+            # Check if next hop is in range (for multi-hop)
+            out_of_range = False
+            if self.range_checker:
+                out_of_range = not self.range_checker(pkt.src_id, pkt.next_hop_id)
+            
             rand_loss = self.rng.random() < self.cfg.base_loss_prob
-            failed = (collision and self.cfg.collision_losses) or rand_loss
+            failed = (collision and self.cfg.collision_losses) or rand_loss or out_of_range
 
             if failed:
                 st.retry_count += 1
@@ -175,12 +182,18 @@ class Mac:
             self.metrics.duplicates += 1
         else:                                                       # update success counters
             self.seen.add(key)
-            self.metrics.dequeued_ok += 1
-            self.metrics.bytes_ok += pkt.size_bytes
-
-            now_ms = self.slot_index * self.cfg.slot_ms
-            self.metrics.rtt_samples += 1
-            self.metrics.rtt_ms_total += max(0.0, now_ms - pkt.t_created * 1000.0)
+            
+            # Check if packet reached final destination or needs forwarding
+            if pkt.next_hop_id == pkt.dst_id:
+                # Reached final destination
+                self.metrics.dequeued_ok += 1
+                self.metrics.bytes_ok += pkt.size_bytes
+                now_ms = self.slot_index * self.cfg.slot_ms
+                self.metrics.rtt_samples += 1
+                self.metrics.rtt_ms_total += max(0.0, now_ms - pkt.t_created * 1000.0)
+            elif self.forward_callback:
+                # Intermediate hop - forward packet
+                self.forward_callback(pkt)
         
         st.queue.pop()                                              # dequeue packet and reset backoff state
         st.retry_count = 0
