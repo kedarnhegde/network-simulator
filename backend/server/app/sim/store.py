@@ -9,6 +9,7 @@ from .mac import Mac
 from .types import Packet, MacConfig
 from .network import NetworkLayer, RouteAdvertisement
 from .mqtt import MqttBroker, MqttClient, MqttMessage
+from .mobility import RandomWaypointMobility, GridMobility, MobilityModel
 
 class Store:
     def __init__(self):
@@ -20,12 +21,15 @@ class Store:
         self.network = NetworkLayer()  # Network layer routing
         self.mqtt_brokers: Dict[int, MqttBroker] = {}  # node_id -> MqttBroker
         self.mqtt_clients: Dict[int, MqttClient] = {}  # node_id -> MqttClient
+        self.mqtt_pending_deliveries: List[tuple] = []  # (subscriber_id, message) pending delivery
+        self.mobility_models: Dict[int, MobilityModel] = {}  # node_id -> MobilityModel
         self._next_id = 1
         self._next_seq = 1
         self._next_msg_id = 1
         self._task: Optional[asyncio.Task] = None
         self._accum = 0.0  # for slot timing
         self._mqtt_accum = 0.0  # for MQTT processing
+        self.bounds = (0, 0, 400, 233)  # Canvas bounds for mobility (matches 1200x700 canvas / 3 scale)
     
     def _check_range(self, src_id: int, dst_id: int) -> bool:
         """Check if two nodes are within PHY range of each other"""
@@ -66,9 +70,9 @@ class Store:
         # Enqueue at current hop for forwarding
         self.mac.enqueue(forwarded_pkt)
 
-    def add_node(self, role: str, phy: str, x: float, y: float) -> int:
+    def add_node(self, role: str, phy: str, x: float, y: float, mobile: bool = False, speed: float = 0.0) -> int:
         nid = self._next_id; self._next_id += 1
-        node = Node(id=nid, role=role, phy=phy, pos=Position(x, y), is_broker=(role=="broker"))
+        node = Node(id=nid, role=role, phy=phy, pos=Position(x, y), is_broker=(role=="broker"), mobile=mobile, speed=speed)
         self.nodes.append(node)
         kind = "BLE" if phy == "BLE" else ("WiFi" if phy == "WiFi" else "Zigbee")
         self.mac.add_node(node_id=nid, kind=kind)
@@ -79,6 +83,15 @@ class Store:
             self.mqtt_brokers[nid] = MqttBroker(nid)
         elif role in ["publisher", "subscriber"]:
             self.mqtt_clients[nid] = MqttClient(nid, role)
+        
+        # Initialize mobility if mobile
+        if mobile and speed > 0:
+            # Use bounded mobility: nodes stay within 70 units of starting position
+            # This ensures they go out of range (>55 for WiFi) and come back
+            self.mobility_models[nid] = RandomWaypointMobility(
+                nid, speed, pause_time=2.0, 
+                max_radius=70.0, center_x=x, center_y=y
+            )
         
         return nid
 
@@ -94,6 +107,8 @@ class Store:
         self.network = NetworkLayer()  # Reset network layer
         self.mqtt_brokers.clear()
         self.mqtt_clients.clear()
+        self.mqtt_pending_deliveries.clear()
+        self.mobility_models.clear()
         self._next_id = 1
         self._next_seq = 1
         self._next_msg_id = 1
@@ -162,6 +177,14 @@ class Store:
         
         while True:
             if self.running:
+                # Update mobile node positions
+                for node in self.nodes:
+                    if node.mobile and node.id in self.mobility_models:
+                        model = self.mobility_models[node.id]
+                        new_x, new_y = model.update_position(node.pos.x, node.pos.y, dt, self.bounds)
+                        node.pos.x = new_x
+                        node.pos.y = new_y
+                
                 self.engine.tick(self.nodes, dt)
                 
                 # Network layer: periodic route advertisements
@@ -191,13 +214,59 @@ class Store:
     
     def _process_mqtt(self):
         """Process MQTT messages and retransmissions"""
+        current_time = self.engine.now
+        
+        # Check keep-alive for all clients
+        for client_id, client in self.mqtt_clients.items():
+            if not client.check_keep_alive(current_time):
+                # Client disconnected, attempt reconnect
+                if client.reconnect():
+                    # Reconnected successfully
+                    pass
+        
+        # Check connectivity for all MQTT clients (with hysteresis to prevent rapid toggling)
+        for client_id, client in self.mqtt_clients.items():
+            broker_id = next(iter(self.mqtt_brokers.keys()), None)
+            if not broker_id:
+                continue
+            
+            in_range = self._check_range(broker_id, client_id)
+            
+            # Only change state if it's different from current state
+            if in_range and not client.connected:
+                # Back in range - reconnect!
+                if client.reconnect():
+                    pass  # Reconnected successfully
+            elif not in_range and client.connected:
+                # Moved out of range - disconnect
+                client.connected = False
+                client.stats['disconnects'] += 1
+        
+        # Process pending MQTT deliveries
+        remaining_deliveries = []
+        for sub_id, msg in self.mqtt_pending_deliveries:
+            if sub_id not in self.mqtt_clients:
+                continue
+            
+            client = self.mqtt_clients[sub_id]
+            
+            # Only deliver if client is connected
+            if client.connected:
+                ack_msg_id = client.receive_message(msg)
+                broker_id = next(iter(self.mqtt_brokers.keys()), None)
+                if ack_msg_id and broker_id in self.mqtt_brokers:
+                    self.mqtt_brokers[broker_id].receive_ack(ack_msg_id, sub_id)
+            else:
+                # Not connected - keep in queue for later
+                remaining_deliveries.append((sub_id, msg))
+        
+        self.mqtt_pending_deliveries = remaining_deliveries
+        
         for broker_id, broker in self.mqtt_brokers.items():
             # Check for retransmissions (QoS 1)
-            retransmissions = broker.check_retransmissions(self.engine.now)
+            retransmissions = broker.check_retransmissions(current_time)
             for sub_id, dup_msg in retransmissions:
-                if sub_id in self.mqtt_clients:
-                    ack_msg_id = self.mqtt_clients[sub_id].receive_message(dup_msg)
-                    if ack_msg_id:
-                        broker.receive_ack(ack_msg_id, sub_id)
+                # Add to pending deliveries for range checking
+                self.mqtt_pending_deliveries.append((sub_id, dup_msg))
 
 store = Store()

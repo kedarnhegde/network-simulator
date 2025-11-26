@@ -33,20 +33,22 @@ def list_nodes():
             id=n.id, role=n.role, phy=n.phy,
             x=n.pos.x, y=n.pos.y,
             energy=n.energy, awake=n.awake,
-            sleepRatio=n.sleep_ratio, isBroker=n.is_broker
+            sleepRatio=n.sleep_ratio, isBroker=n.is_broker,
+            mobile=n.mobile, speed=n.speed
         )
         for n in store.nodes
     ]
 
 @app.post("/nodes", response_model=NodeView)
 def add_node(payload: NodeCreate):
-    nid = store.add_node(payload.role, payload.phy, payload.x, payload.y)
+    nid = store.add_node(payload.role, payload.phy, payload.x, payload.y, payload.mobile, payload.speed)
     n = next(n for n in store.nodes if n.id == nid)
     return NodeView(
         id=n.id, role=n.role, phy=n.phy,
         x=n.pos.x, y=n.pos.y,
         energy=n.energy, awake=n.awake,
-        sleepRatio=n.sleep_ratio, isBroker=n.is_broker
+        sleepRatio=n.sleep_ratio, isBroker=n.is_broker,
+        mobile=n.mobile, speed=n.speed
     )
 
 @app.delete("/nodes/{nid}")
@@ -158,16 +160,10 @@ def mqtt_publish(publisher_id: int, topic: str, payload: str, qos: int = 0, reta
     broker = store.mqtt_brokers[broker_id]
     deliveries = broker.publish(message)
     
-    # Actually deliver messages to subscribers
-    delivered_count = 0
-    for sub_id, msg in deliveries:
-        if sub_id in store.mqtt_clients:
-            ack_msg_id = store.mqtt_clients[sub_id].receive_message(msg)
-            if ack_msg_id:
-                broker.receive_ack(ack_msg_id, sub_id)
-            delivered_count += 1
+    # Queue MQTT messages for network delivery (respects range/connectivity)
+    store.mqtt_pending_deliveries.extend(deliveries)
     
-    return {"ok": True, "msg_id": msg_id, "subscribers": delivered_count}
+    return {"ok": True, "msg_id": msg_id, "subscribers": len(deliveries)}
 
 @app.get("/mqtt/stats")
 def mqtt_stats():
@@ -180,6 +176,7 @@ def mqtt_stats():
     for client_id, client in store.mqtt_clients.items():
         client_stats[client_id] = {
             "role": client.role,
+            "connected": client.connected,
             "subscribed_topics": list(client.subscribed_topics),
             "stats": client.stats
         }

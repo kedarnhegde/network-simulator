@@ -151,19 +151,28 @@ class MqttBroker:
 class MqttClient:
     """MQTT Client (Publisher/Subscriber)"""
     
-    def __init__(self, client_id: int, role: str):
+    def __init__(self, client_id: int, role: str, keep_alive: float = 60.0):
         self.client_id = client_id
         self.role = role  # 'publisher' or 'subscriber'
         self.subscribed_topics: Set[str] = set()
         self.received_messages: List[MqttMessage] = []
         self.received_msg_ids: Set[int] = set()  # For DUP detection
         
+        # Connection state
+        self.connected = True
+        self.keep_alive = keep_alive  # seconds
+        self.last_activity = time.time()
+        self.reconnect_attempts = 0
+        self.max_reconnect_attempts = 5
+        
         # Statistics
         self.stats = {
             'messages_published': 0,
             'messages_received': 0,
             'duplicates_received': 0,
-            'acks_sent': 0
+            'acks_sent': 0,
+            'reconnects': 0,
+            'disconnects': 0
         }
     
     def publish_message(self, topic: str, payload: str, qos: int = 0, retained: bool = False, msg_id: int = 0) -> MqttMessage:
@@ -184,6 +193,8 @@ class MqttClient:
         Receive a message
         Returns msg_id if ACK needed (QoS 1), None otherwise
         """
+        self.last_activity = time.time()
+        
         # Check for duplicate
         if message.msg_id in self.received_msg_ids:
             self.stats['duplicates_received'] += 1
@@ -204,3 +215,33 @@ class MqttClient:
             return message.msg_id
         
         return None
+    
+    def check_keep_alive(self, current_time: float) -> bool:
+        """Check if client is still alive based on keep-alive timeout"""
+        if not self.connected:
+            return False
+        
+        if current_time - self.last_activity > self.keep_alive * 1.5:
+            # Missed keep-alive
+            self.connected = False
+            self.stats['disconnects'] += 1
+            return False
+        return True
+    
+    def reconnect(self) -> bool:
+        """Attempt to reconnect with exponential backoff"""
+        if self.connected:
+            return True  # Already connected
+        
+        if self.reconnect_attempts >= self.max_reconnect_attempts:
+            return False
+        
+        self.reconnect_attempts = 0  # Reset on successful reconnect
+        self.connected = True
+        self.last_activity = time.time()
+        self.stats['reconnects'] += 1
+        return True
+    
+    def send_keep_alive(self):
+        """Send keep-alive ping"""
+        self.last_activity = time.time()

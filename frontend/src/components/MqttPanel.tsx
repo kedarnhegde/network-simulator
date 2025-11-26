@@ -148,8 +148,13 @@ export default function MqttPanel() {
             <div className="text-xs text-slate-400 mt-2 mb-1">Client Stats</div>
             {Object.entries(stats.clients || {}).map(([id, c]: [string, any]) => (
               <div key={id} className="text-xs bg-slate-800 rounded p-2 mb-1">
-                <div>{c.role} {id}: Topics={c.subscribed_topics.join(", ") || "none"}</div>
+                <div className="flex items-center gap-2">
+                  <span className={c.connected ? "text-green-500" : "text-red-500"}>●</span>
+                  <span>{c.role} {id}</span>
+                </div>
+                <div>Topics={c.subscribed_topics.join(", ") || "none"}</div>
                 <div>Pub={c.stats.messages_published} Rcv={c.stats.messages_received} DUPs={c.stats.duplicates_received}</div>
+                {c.stats.reconnects > 0 && <div className="text-yellow-500">Reconnects={c.stats.reconnects}</div>}
               </div>
             ))}
           </div>
