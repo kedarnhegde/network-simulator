@@ -21,8 +21,15 @@ class Store:
         self.network = NetworkLayer()  # Network layer routing
         self.mqtt_brokers: Dict[int, MqttBroker] = {}  # node_id -> MqttBroker
         self.mqtt_clients: Dict[int, MqttClient] = {}  # node_id -> MqttClient
-        self.mqtt_pending_deliveries: List[tuple] = []  # (subscriber_id, message) pending delivery
+        self.mqtt_pending_deliveries: List[tuple] = []  # (subscriber_id, message, effective_qos) pending delivery
+        self.mqtt_pending_pub_acks: List[tuple] = []  # (publisher_id, broker_id, msg_id) pending publisher ACKs
+        self.mqtt_pending_sub_acks: List[tuple] = []  # (sub_id, broker_id, msg_id, pkt_id) pending subscriber ACKs
+        self.mqtt_sub_acks_received: Dict[int, set] = {}  # msg_id -> set of sub_ids that ACKed
         self.mobility_models: Dict[int, MobilityModel] = {}  # node_id -> MobilityModel
+        self.mqtt_packets_in_flight: List[dict] = []  # MQTT packet animations
+        self.mqtt_ack_packets: List[dict] = []  # ACK packet animations
+        self.reconnection_wave: List[tuple] = []  # (node_id, timestamp) for reconnection tracking
+        self.topic_message_counts: Dict[str, int] = {}  # topic -> message count (for heatmap)
         self._next_id = 1
         self._next_seq = 1
         self._next_msg_id = 1
@@ -98,6 +105,37 @@ class Store:
     def remove_node(self, nid: int):
         self.nodes = [n for n in self.nodes if n.id != nid]
         self.network.remove_node(nid)  # Clean up routing state
+        if nid in self.mqtt_brokers:
+            del self.mqtt_brokers[nid]
+        if nid in self.mqtt_clients:
+            del self.mqtt_clients[nid]
+        if nid in self.mobility_models:
+            del self.mobility_models[nid]
+    
+    def relocate_broker(self, old_broker_id: int, new_x: float, new_y: float) -> int:
+        """Relocate broker to new position (simulates failover)"""
+        old_broker = next((n for n in self.nodes if n.id == old_broker_id), None)
+        if not old_broker or not old_broker.is_broker:
+            return old_broker_id
+        
+        # Transfer broker state
+        old_broker_obj = self.mqtt_brokers.get(old_broker_id)
+        if old_broker_obj:
+            # Update position
+            old_broker.pos.x = new_x
+            old_broker.pos.y = new_y
+            
+            # Trigger reconnection wave for all clients
+            for client_id in self.mqtt_clients.keys():
+                client = self.mqtt_clients[client_id]
+                if self._check_range(old_broker_id, client_id):
+                    if not client.connected:
+                        client.reconnect()
+                        self.reconnection_wave.append((client_id, self.engine.now))
+                else:
+                    client.connected = False
+        
+        return old_broker_id
 
     def reset(self):
         self.nodes.clear()
@@ -108,7 +146,14 @@ class Store:
         self.mqtt_brokers.clear()
         self.mqtt_clients.clear()
         self.mqtt_pending_deliveries.clear()
+        self.mqtt_pending_pub_acks.clear()
+        self.mqtt_pending_sub_acks.clear()
+        self.mqtt_sub_acks_received.clear()
         self.mobility_models.clear()
+        self.mqtt_packets_in_flight.clear()
+        self.mqtt_ack_packets.clear()
+        self.reconnection_wave.clear()
+        self.topic_message_counts.clear()
         self._next_id = 1
         self._next_seq = 1
         self._next_msg_id = 1
@@ -236,7 +281,7 @@ class Store:
             if in_range and not client.connected:
                 # Back in range - reconnect!
                 if client.reconnect():
-                    pass  # Reconnected successfully
+                    self.reconnection_wave.append((client_id, current_time))
             elif not in_range and client.connected:
                 # Moved out of range - disconnect
                 client.connected = False
@@ -244,25 +289,183 @@ class Store:
         
         # Process pending MQTT deliveries
         remaining_deliveries = []
-        for sub_id, msg in self.mqtt_pending_deliveries:
+        for sub_id, msg, effective_qos in self.mqtt_pending_deliveries:
             if sub_id not in self.mqtt_clients:
                 continue
             
             client = self.mqtt_clients[sub_id]
+            broker_id = next(iter(self.mqtt_brokers.keys()), None)
             
             # Only deliver if client is connected
-            if client.connected:
-                ack_msg_id = client.receive_message(msg)
-                broker_id = next(iter(self.mqtt_brokers.keys()), None)
+            if client.connected and broker_id:
+                # Add packet animation
+                broker_node = next((n for n in self.nodes if n.id == broker_id), None)
+                client_node = next((n for n in self.nodes if n.id == sub_id), None)
+                if broker_node and client_node:
+                    pkt_id = f"{broker_id}-{sub_id}-{msg.msg_id}"
+                    self.mqtt_packets_in_flight.append({
+                        'id': pkt_id,
+                        'src_id': broker_id,
+                        'dst_id': sub_id,
+                        'src_x': broker_node.pos.x,
+                        'src_y': broker_node.pos.y,
+                        'dst_x': client_node.pos.x,
+                        'dst_y': client_node.pos.y,
+                        'progress': 0.0,
+                        'kind': broker_node.phy,
+                        'topic': msg.topic,
+                        'needs_ack': effective_qos == 1,
+                        'msg_id': msg.msg_id
+                    })
+                
+                ack_msg_id = client.receive_message(msg, effective_qos)
                 if ack_msg_id and broker_id in self.mqtt_brokers:
-                    self.mqtt_brokers[broker_id].receive_ack(ack_msg_id, sub_id)
+                    # Queue ACK to send after packet arrives
+                    self.mqtt_pending_sub_acks.append((sub_id, broker_id, ack_msg_id, pkt_id))
+                
+                # Track expected ACKs for this message
+                if msg.msg_id not in self.mqtt_sub_acks_received:
+                    self.mqtt_sub_acks_received[msg.msg_id] = set()
+                if effective_qos == 1:
+                    # Mark that we expect an ACK from this subscriber
+                    pass  # Will be added when ACK arrives
+                
+                # Track topic message count
+                self.topic_message_counts[msg.topic] = self.topic_message_counts.get(msg.topic, 0) + 1
             else:
                 # Not connected - keep in queue for later
-                remaining_deliveries.append((sub_id, msg))
+                remaining_deliveries.append((sub_id, msg, effective_qos))
         
         self.mqtt_pending_deliveries = remaining_deliveries
         
+        # Update MQTT packet animations (faster)
+        self.mqtt_packets_in_flight = [
+            {**p, 'progress': p['progress'] + 0.05} 
+            for p in self.mqtt_packets_in_flight 
+            if p['progress'] < 1.0
+        ]
+        
+        # Update ACK packet animations (faster)
+        self.mqtt_ack_packets = [
+            {**p, 'progress': p['progress'] + 0.05} 
+            for p in self.mqtt_ack_packets 
+            if p['progress'] < 1.0
+        ]
+        
+        # Check for completed MQTT packets and send subscriber ACKs
+        completed_packets = {p['id'] for p in self.mqtt_packets_in_flight if p['progress'] >= 0.95}
+        remaining_sub_acks = []
+        for sub_id, broker_id, msg_id, pkt_id in self.mqtt_pending_sub_acks:
+            if pkt_id in completed_packets:
+                # Packet arrived, send ACK
+                sub_node = next((n for n in self.nodes if n.id == sub_id), None)
+                broker_node = next((n for n in self.nodes if n.id == broker_id), None)
+                if sub_node and broker_node:
+                    self.mqtt_ack_packets.append({
+                        'id': f"ack-{sub_id}-{broker_id}-{msg_id}",
+                        'src_id': sub_id,
+                        'dst_id': broker_id,
+                        'src_x': sub_node.pos.x,
+                        'src_y': sub_node.pos.y,
+                        'dst_x': broker_node.pos.x,
+                        'dst_y': broker_node.pos.y,
+                        'progress': 0.0,
+                        'kind': 'ACK',
+                        'msg_id': msg_id,
+                        'from_sub': True
+                    })
+                
+                # Track that this subscriber ACKed
+                if msg_id not in self.mqtt_sub_acks_received:
+                    self.mqtt_sub_acks_received[msg_id] = set()
+                if sub_id not in self.mqtt_sub_acks_received[msg_id]:
+                    self.mqtt_sub_acks_received[msg_id].add(sub_id)
+                
+                # Broker receives ACK
+                if broker_id in self.mqtt_brokers:
+                    self.mqtt_brokers[broker_id].receive_ack(msg_id, sub_id)
+            else:
+                # Packet not arrived yet, keep waiting
+                remaining_sub_acks.append((sub_id, broker_id, msg_id, pkt_id))
+        
+        self.mqtt_pending_sub_acks = remaining_sub_acks
+        
+        # Process pending publisher ACKs (only after all subscriber ACKs received)
+        completed_sub_acks = {p['id'] for p in self.mqtt_ack_packets if p.get('from_sub') and p['progress'] >= 0.95}
+        remaining_pub_acks = []
+        for pub_id, broker_id, msg_id in self.mqtt_pending_pub_acks:
+            if pub_id not in self.mqtt_clients:
+                continue
+            
+            # Check if all subscriber ACKs for this message have arrived at broker
+            all_sub_acks_arrived = False
+            
+            # Count how many QoS 1 subscribers need to ACK
+            expected_sub_acks = [ack for ack in self.mqtt_pending_sub_acks if ack[2] == msg_id]
+            
+            if len(expected_sub_acks) == 0 and msg_id in self.mqtt_sub_acks_received:
+                # All expected ACKs have been processed
+                expected_acks = self.mqtt_sub_acks_received[msg_id]
+                if len(expected_acks) > 0:
+                    # Check if all ACK packets have completed
+                    all_arrived = all(
+                        f"ack-{sub_id}-{broker_id}-{msg_id}" in completed_sub_acks
+                        for sub_id in expected_acks
+                    )
+                    if all_arrived:
+                        all_sub_acks_arrived = True
+                else:
+                    # No QoS 1 subscribers, but need to wait for packets to arrive
+                    # Check if all message packets have been delivered
+                    msg_packets_done = all(
+                        p['progress'] >= 0.95 
+                        for p in self.mqtt_packets_in_flight 
+                        if p.get('msg_id') == msg_id
+                    )
+                    if msg_packets_done:
+                        all_sub_acks_arrived = True
+            
+            if all_sub_acks_arrived:
+                # Check if publisher is in range
+                if self._check_range(pub_id, broker_id):
+                    # Send ACK animation
+                    pub_node = next((n for n in self.nodes if n.id == pub_id), None)
+                    broker_node = next((n for n in self.nodes if n.id == broker_id), None)
+                    if pub_node and broker_node:
+                        self.mqtt_ack_packets.append({
+                            'id': f"ack-{broker_id}-{pub_id}-{msg_id}",
+                            'src_id': broker_id,
+                            'dst_id': pub_id,
+                            'src_x': broker_node.pos.x,
+                            'src_y': broker_node.pos.y,
+                            'dst_x': pub_node.pos.x,
+                            'dst_y': pub_node.pos.y,
+                            'progress': 0.0,
+                            'kind': 'ACK',
+                            'msg_id': msg_id,
+                            'from_sub': False
+                        })
+                    
+                    # Increment publisher ACK count
+                    client = self.mqtt_clients[pub_id]
+                    client.stats['acks_sent'] += 1
+                    
+                    # Clean up tracking
+                    if msg_id in self.mqtt_sub_acks_received:
+                        del self.mqtt_sub_acks_received[msg_id]
+                else:
+                    # Out of range, keep in queue
+                    remaining_pub_acks.append((pub_id, broker_id, msg_id))
+            else:
+                # Not all subscriber ACKs received yet, keep waiting
+                remaining_pub_acks.append((pub_id, broker_id, msg_id))
+        
+        self.mqtt_pending_pub_acks = remaining_pub_acks
+        
         for broker_id, broker in self.mqtt_brokers.items():
+            # Process broker queue to reduce queue depth
+            broker.process_queue(count=5)
+            
             # Check for retransmissions (QoS 1)
             retransmissions = broker.check_retransmissions(current_time)
             for sub_id, dup_msg in retransmissions:

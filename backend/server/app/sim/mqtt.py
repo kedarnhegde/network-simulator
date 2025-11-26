@@ -37,7 +37,7 @@ class MqttBroker:
     
     def __init__(self, broker_id: int):
         self.broker_id = broker_id
-        self.subscriptions: Dict[str, Set[int]] = defaultdict(set)  # topic -> set of client_ids
+        self.subscriptions: Dict[str, Dict[int, int]] = defaultdict(dict)  # topic -> {client_id: qos}
         self.retained_messages: Dict[str, MqttMessage] = {}  # topic -> last retained message
         self.pending_acks: Dict[tuple, PendingAck] = {}  # (msg_id, subscriber_id) -> PendingAck
         self.message_queue: List[MqttMessage] = []  # Broker's message queue
@@ -56,7 +56,7 @@ class MqttBroker:
     
     def subscribe(self, client_id: int, topic: str, qos: int = 0):
         """Client subscribes to a topic"""
-        self.subscriptions[topic].add(client_id)
+        self.subscriptions[topic][client_id] = qos  # Store QoS level
         
         # Send retained message if exists
         if topic in self.retained_messages:
@@ -65,13 +65,13 @@ class MqttBroker:
     
     def unsubscribe(self, client_id: int, topic: str):
         """Client unsubscribes from a topic"""
-        if topic in self.subscriptions:
-            self.subscriptions[topic].discard(client_id)
+        if topic in self.subscriptions and client_id in self.subscriptions[topic]:
+            del self.subscriptions[topic][client_id]
     
-    def publish(self, message: MqttMessage) -> List[tuple]:
+    def publish(self, message: MqttMessage) -> tuple[List[tuple], bool]:
         """
         Broker receives a published message and routes to subscribers
-        Returns list of (subscriber_id, message) tuples to deliver
+        Returns (list of (subscriber_id, message) tuples, needs_pub_ack)
         """
         self.stats['messages_received'] += 1
         self.message_queue.append(message)
@@ -82,15 +82,18 @@ class MqttBroker:
             self.retained_messages[message.topic] = message
         
         # Find subscribers for this topic
-        subscribers = self.subscriptions.get(message.topic, set())
+        subscribers = self.subscriptions.get(message.topic, {})
         deliveries = []
         
-        for sub_id in subscribers:
-            if message.qos == 0:
+        for sub_id, sub_qos in subscribers.items():
+            # Use minimum of publish QoS and subscription QoS
+            effective_qos = min(message.qos, sub_qos)
+            
+            if effective_qos == 0:
                 # QoS 0: Fire and forget
                 self.stats['qos0_messages'] += 1
-                deliveries.append((sub_id, message))
-            elif message.qos == 1:
+                deliveries.append((sub_id, message, 0))
+            elif effective_qos == 1:
                 # QoS 1: At least once - track for ACK
                 self.stats['qos1_messages'] += 1
                 key = (message.msg_id, sub_id)
@@ -100,9 +103,10 @@ class MqttBroker:
                         subscriber_id=sub_id,
                         message=message
                     )
-                deliveries.append((sub_id, message))
+                deliveries.append((sub_id, message, 1))
         
-        return deliveries
+        # Return whether publisher needs ACK (QoS 1)
+        return deliveries, message.qos == 1
     
     def receive_ack(self, msg_id: int, subscriber_id: int):
         """Receive ACK for QoS 1 message"""
@@ -139,14 +143,16 @@ class MqttBroker:
         
         return retransmissions
     
-    def process_queue(self) -> Optional[MqttMessage]:
-        """Process one message from queue"""
-        if self.message_queue:
-            msg = self.message_queue.pop(0)
-            self.stats['queue_depth'] = len(self.message_queue)
-            self.stats['messages_delivered'] += 1
-            return msg
-        return None
+    def process_queue(self, count: int = 1) -> List[MqttMessage]:
+        """Process messages from queue"""
+        processed = []
+        for _ in range(min(count, len(self.message_queue))):
+            if self.message_queue:
+                msg = self.message_queue.pop(0)
+                self.stats['messages_delivered'] += 1
+                processed.append(msg)
+        self.stats['queue_depth'] = len(self.message_queue)
+        return processed
 
 class MqttClient:
     """MQTT Client (Publisher/Subscriber)"""
@@ -188,17 +194,17 @@ class MqttClient:
         self.stats['messages_published'] += 1
         return message
     
-    def receive_message(self, message: MqttMessage) -> Optional[int]:
+    def receive_message(self, message: MqttMessage, effective_qos: int) -> Optional[int]:
         """
         Receive a message
-        Returns msg_id if ACK needed (QoS 1), None otherwise
+        Returns msg_id if ACK needed (effective QoS 1), None otherwise
         """
         self.last_activity = time.time()
         
         # Check for duplicate
         if message.msg_id in self.received_msg_ids:
             self.stats['duplicates_received'] += 1
-            if message.qos == 1:
+            if effective_qos == 1:
                 # Still send ACK for duplicates
                 self.stats['acks_sent'] += 1
                 return message.msg_id
@@ -209,8 +215,8 @@ class MqttClient:
         self.received_messages.append(message)
         self.stats['messages_received'] += 1
         
-        # Send ACK if QoS 1
-        if message.qos == 1:
+        # Send ACK if effective QoS 1
+        if effective_qos == 1:
             self.stats['acks_sent'] += 1
             return message.msg_id
         

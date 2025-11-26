@@ -1,7 +1,7 @@
 # 🛰️ Network Simulator
 
-A modular **IoT network simulator** built for **CS-576**.  
-Implements **Physical**, **MAC**, and **Network** layers using a FastAPI backend and a React + Vite frontend.
+A modular **IoT/MQTT network simulator** built for **CS-576**.  
+Implements **Physical**, **MAC**, **Network**, and **MQTT** layers with mobility support.
 
 ---
 
@@ -29,7 +29,7 @@ make install-backend
 make run-backend
 ```
 
-Frontend (Not completed yet):
+Frontend:
 ```bash
 make install-frontend
 make run-frontend
@@ -41,164 +41,248 @@ make run-frontend
 
 ---
 
-## 🧪 API Endpoints
+## 🧱 Features
 
-| Endpoint | Method | Description |
-|-----------|---------|-------------|
-| `/health` | GET | Health check |
-| `/nodes` | GET/POST/DELETE | Manage network nodes |
-| `/control/start` | POST | Start simulation |
-| `/control/pause` | POST | Pause simulation |
-| `/control/reset` | POST | Reset simulation |
-| `/traffic` | POST | Send packets through MAC/Network layers |
-| `/metrics` | GET | Simulation metrics |
-| `/routing` | GET | All routing tables |
-| `/routing/{id}` | GET | Routing table for a node |
+### Physical Layer
+- WiFi (range: 55 units, 54 Mbps)
+- BLE (range: 15 units, 1 Mbps)
+- Energy consumption modeling
 
----
+### MAC Layer
+- CSMA/CA with backoff
+- Collision detection
+- Retry logic
 
-## 🧱 Architecture Overview
+### Network Layer
+- Distance-vector routing
+- Multi-hop forwarding
+- Route advertisements
 
-```
-┌────────────────────────────┐
-│ Application Layer          │  → traffic via /traffic API
-└──────────────┬─────────────┘
-               ↓
-┌────────────────────────────┐
-│ Network Layer              │
-│ - Distance-vector routing  │
-│ - Multi-hop forwarding     │
-└──────────────┬─────────────┘
-               ↓
-┌────────────────────────────┐
-│ MAC Layer (CSMA/CA)        │
-│ - Backoff, retries, loss   │
-└──────────────┬─────────────┘
-               ↓
-┌────────────────────────────┐
-│ Physical Layer             │
-│ - WiFi, BLE, Zigbee models │
-│ - Range, data rate, energy │
-└────────────────────────────┘
-```
+### MQTT Protocol
+- QoS 0 (Fire & Forget) and QoS 1 (At Least Once)
+- Publish/Subscribe pattern
+- DUP flag for retransmissions
+- Keep-alive mechanism
+- Broker queue management
+
+### Mobility
+- Random Waypoint model
+- Bounded movement
+- Automatic reconnection
+
+### Visualization
+- Real-time packet animation (blue=WiFi, yellow=BLE, purple=MQTT)
+- Node states (connected/disconnected)
+- Topic heatmap
+- Reconnection wave
 
 ---
 
-## 🧩 Testing (PHY → MAC → Network)
+## 🧪 Complete Testing Guide
 
-### 1️⃣ PHY — Range & Energy
+### Prerequisites
+
+**Terminal 1 - Backend:**
 ```bash
-curl -X POST http://localhost:8000/control/reset
-curl -X POST http://localhost:8000/nodes -H "content-type: application/json" \
-  -d '{"role":"sensor","phy":"WiFi","x":10,"y":10}'
-curl -X POST http://localhost:8000/nodes -H "content-type: application/json" \
-  -d '{"role":"broker","phy":"WiFi","x":40,"y":40}'
-curl -X POST http://localhost:8000/nodes -H "content-type: application/json" \
-  -d '{"role":"sensor","phy":"BLE","x":500,"y":500}'
-curl -X POST http://localhost:8000/control/start
-sleep 3
-curl http://localhost:8000/metrics
+source .venv/bin/activate
+make run-backend
 ```
-👉 *Expect:* `now` > 0 s; energy decreases over time; distant node not connected.
 
----
-
-### 2️⃣ MAC — Channel Contention
+**Terminal 2 - Frontend:**
 ```bash
-curl -X POST http://localhost:8000/control/reset
-curl -X POST http://localhost:8000/nodes -H "content-type: application/json" \
-  -d '{"role":"broker","phy":"WiFi","x":100,"y":100}'
-for i in 1 2 3 4 5; do
-  X=$((100+i*2)); Y=$((100+i))
-  curl -s -X POST http://localhost:8000/nodes -H "content-type: application/json" \
-    -d "{\"role\":\"sensor\",\"phy\":\"WiFi\",\"x\":$X,\"y\":$Y}"
-done
-curl -X POST http://localhost:8000/control/start
-curl -X POST "http://localhost:8000/traffic?src=2&dst=1&n=50&size=200&kind=WiFi"
-sleep 3
-curl http://localhost:8000/metrics
+cd frontend
+npm install  # first time only
+npm run dev
 ```
-👉 *Expect:* latency ↑, possible delivery variation (PDR < 1) under heavy contention.
+
+**Browser:** Open http://localhost:5173
 
 ---
 
-### 3️⃣ Network — Multi-Hop Routing
-```bash
-curl -X POST http://localhost:8000/control/reset
-curl -X POST http://localhost:8000/nodes -H "content-type: application/json" \
-  -d '{"role":"sensor","phy":"BLE","x":10,"y":10}'
-curl -X POST http://localhost:8000/nodes -H "content-type: application/json" \
-  -d '{"role":"sensor","phy":"BLE","x":25,"y":10}'
-curl -X POST http://localhost:8000/nodes -H "content-type: application/json" \
-  -d '{"role":"sensor","phy":"BLE","x":40,"y":10}'
-curl -X POST http://localhost:8000/control/start
-sleep 5
-curl http://localhost:8000/routing | jq .
-curl -X POST "http://localhost:8000/traffic?src=1&dst=3&n=20&size=100&kind=BLE"
-sleep 3
-curl http://localhost:8000/metrics | jq .
-```
-👉 *Expect:* routes show 1 → 3 via 2, `delivered` > 0, non-zero latency (multi-hop).
+## Test 1: Physical Layer (Range & Energy)
+
+**Goal:** Verify WiFi/BLE range limits and energy consumption.
+
+**Steps:**
+1. Click **Reset** button
+2. Click **Add Node** button:
+   - Role: `sensor`, PHY: `WiFi`, X: `100`, Y: `100`
+3. Click **Add Node** again:
+   - Role: `sensor`, PHY: `WiFi`, X: `140`, Y: `100` (within WiFi range)
+4. Click **Add Node** again:
+   - Role: `sensor`, PHY: `BLE`, X: `200`, Y: `100` (out of range)
+5. Click **Start** button
+6. Wait 5 seconds
+7. Check **Metrics** panel
+
+**Expected:**
+- Simulation time (`now`) increases
+- Energy decreases for all nodes
+- Nodes 1 & 2 can communicate (within 55 units)
+- Node 3 isolated (BLE range only 15 units)
 
 ---
 
-## 📈 Metrics Explained
-| Field | Meaning |
-|--------|----------|
-| `now` | Simulation time |
-| `pdr` | Packet delivery ratio (0–1) |
-| `avgLatencyMs` | Average latency (ms) |
-| `delivered` | Packets delivered |
-| `duplicates` | Duplicate packets seen |
+## Test 2: MAC Layer (CSMA/CA)
+
+**Goal:** Test channel contention and collision handling.
+
+**Steps:**
+1. Click **Reset**
+2. Create 3 nodes:
+   - Node 1: Role: `sensor`, PHY: `WiFi`, X: `100`, Y: `100`
+   - Node 2: Role: `sensor`, PHY: `WiFi`, X: `100`, Y: `140`
+   - Node 3: Role: `sensor`, PHY: `WiFi`, X: `100`, Y: `180`
+3. Click **Start**
+4. In **Traffic** panel:
+   - Src: `1`, Dst: `2`, N: `20`, Size: `200`, PHY: `WiFi`
+   - Click **Send**
+5. Immediately send more:
+   - Src: `3`, Dst: `2`, N: `20`, Size: `200`, PHY: `WiFi`
+   - Click **Send**
+6. Watch canvas for blue packet animations
+7. Check **Metrics** panel after 5 seconds
+
+**Expected:**
+- Blue dots animate between nodes
+- Packets delivered (check `delivered` count)
+- Some latency due to backoff (check `avgLatencyMs`)
+- PDR close to 1.0 (successful delivery)
 
 ---
 
-## 🎨 Testing Packet Visualization in UI
+## Test 3: Network Layer (Multi-hop Routing)
 
-### Step-by-Step Guide:
+**Goal:** Verify packets route through intermediate nodes.
 
-1. **Start Backend**
-   ```bash
-   source .venv/bin/activate
-   make run-backend
-   ```
+**Steps:**
+1. Click **Reset**
+2. Create 3 BLE nodes in a line:
+   - Node 1: Role: `sensor`, PHY: `WiFi`, X: `100`, Y: `100`
+   - Node 2: Role: `sensor`, PHY: `WiFi`, X: `100`, Y: `140` (relay)
+   - Node 3: Role: `sensor`, PHY: `WiFi`, X: `100`, Y: `180`
+3. Click **Start**
+4. Wait 5 seconds (for routing tables to build)
+5. In **Traffic** panel:
+   - Src: `1`, Dst: `3`, N: `10`, Size: `100`, PHY: `BLE`
+   - Click **Send**
+6. Watch packets hop: 1 → 2 → 3
 
-2. **Start Frontend** (in new terminal)
-   ```bash
-   cd frontend
-   npm install  # first time only
-   npm run dev
-   ```
+**Expected:**
+- Blue dots animate 1→2, then 2→3
+- Packets delivered to node 3
+- Higher latency than single-hop
+- Routing tables show node 2 as next hop
 
-3. **Open Browser**
-   - Navigate to http://localhost:5173
+---
 
-4. **Create Nodes**
-   - Click "Add Node" or use the API
-   - Create at least 2 nodes (e.g., sensor at x=100, y=100 and broker at x=400, y=300)
+## Test 4: MQTT Protocol & Advanced Features
 
-5. **Start Simulation**
-   - Click "Start" button in the Controls panel
+**Goal:** Test MQTT pub/sub, QoS levels, topic heatmap, queue depth, mobility, and broker failover.
 
-6. **Send Traffic**
-   - In the Traffic panel:
-     - Set **Src**: 1 (source node ID)
-     - Set **Dst**: 2 (destination node ID)
-     - Set **N**: 10 (number of packets)
-     - Set **PHY**: WiFi or BLE
-   - Click "Send" button
+**Steps:**
+1. Click **Reset**
+2. Create MQTT topology:
+   - Node 1: Role: `broker`, PHY: `WiFi`, X: `100`, Y: `100`
+   - Node 2: Role: `publisher`, PHY: `WiFi`, X: `80`, Y: `100`
+   - Node 3: Role: `subscriber`, PHY: `WiFi`, X: `120`, Y: `80`
+   - Node 4: Role: `subscriber`, PHY: `WiFi`, X: `120`, Y: `120`
+   - Node 5: Role: `subscriber`, PHY: `WiFi`, X: `110`, Y: `100`, **Mobile: ✓**, Speed: `3`
+3. Click **Start**
+4. **Subscribe clients (nodes 3 & 4):**
+   - Subscriber ID: `3`, Topic: `sensor/temp`, QoS: `0`, Click **Subscribe**
+   - Subscriber ID: `4`, Topic: `sensor/temp`, QoS: `1`, Click **Subscribe**
+   - Subscriber ID: `3`, Topic: `sensor/humidity`, QoS: `0`, Click **Subscribe**
+5. **Publish messages:**
+   - Publisher ID: `2`, Topic: `sensor/temp`, Payload: `25`, QoS: `0`, Click **Publish** (repeat 10 times)
+   - Publisher ID: `2`, Topic: `sensor/humidity`, Payload: `60`, QoS: `0`, Click **Publish** (repeat 5 times)
+6. **Test queue depth:**
+   - Change QoS to `1`, rapidly click **Publish** 20 times
+   - Watch **Broker Stats** - Queue depth increases then decreases
+7. **Test mobility:**
+   - Subscribe node 5: Subscriber ID: `5`, Topic: `sensor/temp`, Click **Subscribe**
+   - Watch node 5 move (blue arrow ➤)
+   - Publish every 2 seconds: Publisher ID: `2`, Topic: `sensor/temp`, Payload: `msg`
+   - Repeat for 30 seconds
+   - Watch node 5: 🟢 (connected) → 🔴 (out of range) → 🟢 (reconnected)
+8. **Test broker failover:
+   - In **Broker Failover** section: X: `150`, Y: `150`, Click **Relocate**
+   - Watch **Reconnection Wave** for reconnection events
+   - Relocate back: X: `100`, Y: `100`, Click **Relocate**
 
-7. **Watch Packets Move!**
-   - You'll see small glowing dots (packets) animate from source to destination
-   - **Blue dots** = WiFi packets
-   - **Purple dots** = BLE packets
-   - Up to 5 packets will be visualized at once
+**Expected:**
+- ✅ **Purple dots** animate from broker to subscribers
+- ✅ **Client Stats:** 🟢 green dots (connected), `Rcv` counts increase, `Acks` shown for QoS 1
+- ✅ **Broker Stats:** `Received` = messages from publisher, Queue depth fluctuates
+- ✅ **Topic Heatmap:** Shows `sensor/temp` (10 msgs) and `sensor/humidity` (5 msgs) with gradient bars
+- ✅ **Queue Depth:** Increases during burst, decreases to 0
+- ✅ **Mobility:** Node 5 moves, disconnects (🔴), reconnects (🟢), `Reconnects=1` shown
+- ✅ **Reconnection Wave:** Shows "Node X reconnected" when clients come back in range
+- ✅ **Broker Failover:** Broker moves, clients reconnect if in range
 
-**Node Colors:**
-- 🟢 Green = Sensor
-- 🟠 Amber = Subscriber
-- 🩷 Pink = Publisher
-- 🩵 Teal = Broker (with yellow ring)
+---
+
+## Visual Reference
+
+### Node Colors
+- 🟢 **Green** = Sensor
+- 🟠 **Amber** = Subscriber
+- 🩵 **Teal** = Publisher
+- 🩷 **Pink** = Broker (with yellow ring)
+
+### Packet Colors
+- 🔵 **Blue** = WiFi MAC packets
+- 🟡 **Yellow** = BLE MAC packets
+- 🟣 **Purple** = MQTT messages (broker → subscribers)
+- 🟢 **Green** = ACK packets (broker → publisher, subscribers → broker)
+
+### Connection States
+- 🟢 **Green dot** = Connected (in range)
+- 🔴 **Red dot** = Disconnected (out of range)
+
+### Indicators
+- **➤ Blue arrow** = Mobile node
+- **Yellow ring** = Broker node
+- **Queue: X** (amber) = Broker queue depth
+- **Reconnects=X** (yellow) = Reconnection count
+
+---
+
+## Troubleshooting
+
+**MQTT packets not visible?**
+- Ensure simulation is running (click Start)
+- Verify subscribers are subscribed before publishing
+- Check clients are connected (🟢 green dot)
+
+**Reconnection wave not showing?**
+- Mobile nodes must move out of range first (>55 units for WiFi)
+- Reconnections only show for last 5 seconds
+- Check node has Mobile checkbox enabled
+
+**Topic heatmap empty?**
+- Publish messages first
+- Ensure subscribers are subscribed to topics
+- Messages must be delivered (clients connected)
+
+**Queue depth always 0?**
+- Use QoS 1 for queuing behavior
+- Publish messages rapidly (burst)
+- Check broker stats update (every 1 second)
+
+---
+
+## 📊 Summary
+
+This simulator implements a complete IoT network stack:
+- **Physical Layer**: WiFi/BLE with range and energy modeling
+- **MAC Layer**: CSMA/CA with collision handling
+- **Network Layer**: Distance-vector routing with multi-hop
+- **MQTT Protocol**: QoS 0/1, pub/sub, broker, keep-alive
+- **Mobility**: Random Waypoint with automatic reconnection
+- **Visualization**: Real-time packet animation and network state
+
+All features are testable through the web UI without any command-line tools.
 
 ---
 

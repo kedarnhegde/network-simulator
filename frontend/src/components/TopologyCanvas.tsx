@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { NodeView, PacketInFlight } from "../api/types";
 
 const ROLE_COLOR: Record<string, string> = {
-  sensor: "#10b981",     // green-500
+  sensor: "#22c55e",     // green-500 (brighter)
   subscriber: "#f59e0b", // amber-500
   publisher: "#14b8a6",  // teal-500
   broker: "#ec4899",     // pink-500
@@ -22,6 +22,8 @@ export default function TopologyCanvas({ nodes, width = 1200, height = 700, onDe
   const ref = useRef<HTMLCanvasElement | null>(null);
   const [packets, setPackets] = useState<PacketInFlight[]>([]);
   const packetsRef = useRef<PacketInFlight[]>([]);
+  const [mqttPackets, setMqttPackets] = useState<any[]>([]);
+  const [ackPackets, setAckPackets] = useState<any[]>([]);
   const [hoveredNode, setHoveredNode] = useState<number | null>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; node: NodeView } | null>(null);
 
@@ -31,6 +33,7 @@ export default function TopologyCanvas({ nodes, width = 1200, height = 700, onDe
 
   const drawLines = (ctx: CanvasRenderingContext2D) => {
     const drawn = new Set<string>();
+    // Draw MAC packet lines
     for (const pkt of packetsRef.current) {
       const key = `${pkt.srcId}-${pkt.dstId}`;
       if (drawn.has(key)) continue;
@@ -40,6 +43,38 @@ export default function TopologyCanvas({ nodes, width = 1200, height = 700, onDe
       ctx.moveTo(pkt.srcX * SCALE, pkt.srcY * SCALE);
       ctx.lineTo(pkt.dstX * SCALE, pkt.dstY * SCALE);
       ctx.strokeStyle = "#475569"; // slate-600
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 5]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    // Draw MQTT packet lines
+    const mqttDrawn = new Set<string>();
+    for (const pkt of mqttPackets) {
+      const key = `${pkt.src_id}-${pkt.dst_id}`;
+      if (mqttDrawn.has(key)) continue;
+      mqttDrawn.add(key);
+      
+      ctx.beginPath();
+      ctx.moveTo(pkt.src_x * SCALE, pkt.src_y * SCALE);
+      ctx.lineTo(pkt.dst_x * SCALE, pkt.dst_y * SCALE);
+      ctx.strokeStyle = "#475569";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 5]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    // Draw ACK packet lines
+    const ackDrawn = new Set<string>();
+    for (const pkt of ackPackets) {
+      const key = `${pkt.src_id}-${pkt.dst_id}`;
+      if (ackDrawn.has(key)) continue;
+      ackDrawn.add(key);
+      
+      ctx.beginPath();
+      ctx.moveTo(pkt.src_x * SCALE, pkt.src_y * SCALE);
+      ctx.lineTo(pkt.dst_x * SCALE, pkt.dst_y * SCALE);
+      ctx.strokeStyle = "#475569";
       ctx.lineWidth = 1;
       ctx.setLineDash([5, 5]);
       ctx.stroke();
@@ -95,6 +130,7 @@ export default function TopologyCanvas({ nodes, width = 1200, height = 700, onDe
   };
 
   const drawPackets = (ctx: CanvasRenderingContext2D) => {
+    // Draw MAC layer packets
     for (const pkt of packetsRef.current) {
       const x = (pkt.srcX + (pkt.dstX - pkt.srcX) * pkt.progress) * SCALE;
       const y = (pkt.srcY + (pkt.dstY - pkt.srcY) * pkt.progress) * SCALE;
@@ -105,6 +141,34 @@ export default function TopologyCanvas({ nodes, width = 1200, height = 700, onDe
       ctx.fillStyle = color;
       ctx.shadowBlur = 12;
       ctx.shadowColor = color;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    
+    // Draw MQTT packets (purple/magenta)
+    for (const pkt of mqttPackets) {
+      const x = (pkt.src_x + (pkt.dst_x - pkt.src_x) * pkt.progress) * SCALE;
+      const y = (pkt.src_y + (pkt.dst_y - pkt.src_y) * pkt.progress) * SCALE;
+      
+      ctx.beginPath();
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.fillStyle = "#a855f7"; // purple-500
+      ctx.shadowBlur = 16;
+      ctx.shadowColor = "#a855f7";
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    
+    // Draw ACK packets (green, smaller)
+    for (const pkt of ackPackets) {
+      const x = (pkt.src_x + (pkt.dst_x - pkt.src_x) * pkt.progress) * SCALE;
+      const y = (pkt.src_y + (pkt.dst_y - pkt.src_y) * pkt.progress) * SCALE;
+      
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = "#22c55e"; // green-500
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = "#22c55e";
       ctx.fill();
       ctx.shadowBlur = 0;
     }
@@ -125,31 +189,35 @@ export default function TopologyCanvas({ nodes, width = 1200, height = 700, onDe
       drawNodes(ctx);
       drawPackets(ctx);
       
-      // Update packet positions (slower speed)
-      setPackets(prev => 
-        prev
-          .map(p => ({ ...p, progress: p.progress + 0.008 }))
-          .filter(p => p.progress < 1)
-      );
-      
       requestAnimationFrame(animate);
     };
     
     const animId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(animId);
-  }, [nodes]);
+  }, [nodes, packets, mqttPackets, ackPackets]);
+  
+  // Poll for MQTT packets
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("http://localhost:8000/mqtt/packets");
+        const data = await res.json();
+        setMqttPackets(data.packets || []);
+        setAckPackets(data.acks || []);
+      } catch (e) {
+        // Ignore errors
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, []);
 
   // Expose method to add packets
   useEffect(() => {
     (window as any).addPacket = (srcId: number, dstId: number, kind: string) => {
       const src = nodes.find(n => n.id === srcId);
       const dst = nodes.find(n => n.id === dstId);
-      if (!src || !dst) {
-        console.log("Node not found:", srcId, dstId);
-        return;
-      }
+      if (!src || !dst) return;
       
-      console.log("Adding packet:", srcId, "->", dstId, kind);
       setPackets(prev => [...prev, {
         id: `${Date.now()}-${Math.random()}`,
         srcId,
@@ -163,6 +231,18 @@ export default function TopologyCanvas({ nodes, width = 1200, height = 700, onDe
       }]);
     };
   }, [nodes]);
+  
+  // Update MAC packet positions
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPackets(prev => 
+        prev
+          .map(p => ({ ...p, progress: p.progress + 0.015 }))
+          .filter(p => p.progress < 1)
+      );
+    }, 16);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = ref.current;
