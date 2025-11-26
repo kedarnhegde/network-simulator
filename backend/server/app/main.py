@@ -145,12 +145,16 @@ def mqtt_subscribe(client_id: int, topic: str, qos: int = 0):
 def mqtt_publish(publisher_id: int, topic: str, payload: str, qos: int = 0, retained: bool = False):
     """Publish an MQTT message"""
     if publisher_id not in store.mqtt_clients:
-        raise HTTPException(status_code=404, detail="publisher not found")
+        raise HTTPException(status_code=404, detail=f"publisher {publisher_id} not found. Available clients: {list(store.mqtt_clients.keys())}")
     
     # Find broker
     broker_id = next(iter(store.mqtt_brokers.keys()), None)
     if not broker_id:
         raise HTTPException(status_code=404, detail="no broker available")
+    
+    # Check if publisher is in range of broker
+    if not store._check_range(publisher_id, broker_id):
+        raise HTTPException(status_code=400, detail=f"publisher {publisher_id} out of range from broker {broker_id}")
     
     client = store.mqtt_clients[publisher_id]
     msg_id = store._next_msg_id
@@ -158,10 +162,14 @@ def mqtt_publish(publisher_id: int, topic: str, payload: str, qos: int = 0, reta
     
     message = client.publish_message(topic, payload, qos, retained, msg_id)
     broker = store.mqtt_brokers[broker_id]
-    deliveries = broker.publish(message)
+    deliveries, needs_pub_ack = broker.publish(message)
     
     # Queue MQTT messages for network delivery (respects range/connectivity)
     store.mqtt_pending_deliveries.extend(deliveries)
+    
+    # Queue publisher ACK if QoS 1
+    if needs_pub_ack:
+        store.mqtt_pending_pub_acks.append((publisher_id, broker_id, msg_id))
     
     return {"ok": True, "msg_id": msg_id, "subscribers": len(deliveries)}
 
@@ -212,7 +220,38 @@ def mqtt_reset():
             'messages_published': 0,
             'messages_received': 0,
             'duplicates_received': 0,
-            'acks_sent': 0
+            'acks_sent': 0,
+            'reconnects': 0,
+            'disconnects': 0
         }
     
+    store.topic_message_counts.clear()
+    
     return {"ok": True}
+
+@app.get("/mqtt/packets")
+def mqtt_packets():
+    """Get MQTT packets in flight for visualization"""
+    return {
+        "packets": store.mqtt_packets_in_flight,
+        "acks": store.mqtt_ack_packets
+    }
+
+@app.get("/mqtt/reconnections")
+def mqtt_reconnections():
+    """Get recent reconnection wave events"""
+    current_time = store.engine.now
+    # Return reconnections from last 5 seconds
+    recent = [(nid, t) for nid, t in store.reconnection_wave if current_time - t < 5.0]
+    return {"reconnections": recent}
+
+@app.get("/mqtt/topics")
+def mqtt_topics():
+    """Get topic message counts for heatmap"""
+    return {"topics": store.topic_message_counts}
+
+@app.post("/broker/relocate")
+def broker_relocate(broker_id: int, x: float, y: float):
+    """Relocate broker (simulates failover)"""
+    new_id = store.relocate_broker(broker_id, x, y)
+    return {"ok": True, "broker_id": new_id, "x": x, "y": y}
