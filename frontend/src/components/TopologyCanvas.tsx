@@ -84,6 +84,13 @@ export default function TopologyCanvas({ nodes, width = 1200, height = 700, onDe
       ctx.font = "10px sans-serif";
       ctx.textAlign = "center";
       ctx.fillText(n.id.toString(), x, y - 15);
+      
+      // Draw mobile indicator
+      if (n.mobile) {
+        ctx.fillStyle = "#3b82f6";
+        ctx.font = "12px sans-serif";
+        ctx.fillText("➤", x + 15, y - 10);  // Arrow symbol
+      }
     }
   };
 

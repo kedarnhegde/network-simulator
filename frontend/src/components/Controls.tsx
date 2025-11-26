@@ -9,9 +9,11 @@ export default function Controls() {
   const [phy, setPhy] = useState<Phy>("WiFi");
   const [x, setX] = useState<number>(100);
   const [y, setY] = useState<number>(100);
+  const [mobile, setMobile] = useState<boolean>(false);
+  const [speed, setSpeed] = useState<number>(1.0);
 
   const mCreate = useMutation({
-    mutationFn: () => createNode({ role, phy, x, y }),
+    mutationFn: () => createNode({ role, phy, x, y, mobile, speed }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["nodes"] }),
   });
 
@@ -41,6 +43,17 @@ export default function Controls() {
           <label className="text-sm">Y
             <input type="number" value={y} onChange={e=>setY(Number(e.target.value))} className="w-full bg-slate-800 rounded px-2 py-1" />
           </label>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="text-sm flex items-center gap-2">
+            <input type="checkbox" checked={mobile} onChange={e=>setMobile(e.target.checked)} className="rounded" />
+            Mobile
+          </label>
+          {mobile && (
+            <label className="text-sm">Speed (m/s)
+              <input type="number" step="0.1" min="0.5" max="2.0" value={speed} onChange={e=>setSpeed(Number(e.target.value))} className="w-full bg-slate-800 rounded px-2 py-1" />
+            </label>
+          )}
         </div>
         <button onClick={()=>mCreate.mutate()} className="mt-3 px-3 py-1 rounded bg-blue-600 hover:bg-blue-500">Create</button>
         <div className="mt-2 text-xs text-slate-400">WiFi range: 55 units · BLE range: 15 units</div>

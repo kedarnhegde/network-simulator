@@ -22,6 +22,8 @@ export interface NodeView {
   awake: boolean;
   sleepRatio: number;
   isBroker: boolean;
+  mobile: boolean;
+  speed: number;
 }
 
 export interface Metrics {

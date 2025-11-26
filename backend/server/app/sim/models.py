@@ -43,6 +43,8 @@ class Node:
     sleep_ratio: float = 0.2
     subscribed_topics: Set[str] = field(default_factory=set)
     is_broker: bool = False
+    mobile: bool = False  # Is this node mobile?
+    speed: float = 0.0  # Movement speed in m/s (0.5-2.0 for mobile nodes)
 
 # ---- API schemas (pydantic) ----
 from pydantic import BaseModel, Field
@@ -52,6 +54,8 @@ class NodeCreate(BaseModel):
     phy: PHYType
     x: float = Field(ge=0)
     y: float = Field(ge=0)
+    mobile: bool = False
+    speed: float = 0.0
 
 class NodeView(BaseModel):
     id: int
@@ -63,6 +67,8 @@ class NodeView(BaseModel):
     awake: bool
     sleepRatio: float
     isBroker: bool
+    mobile: bool
+    speed: float
 
 class MetricsView(BaseModel):
     now: float
