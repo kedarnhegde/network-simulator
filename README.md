@@ -211,14 +211,14 @@ npm run dev
    - Relocate back: X: `100`, Y: `100`, Click **Relocate**
 
 **Expected:**
-- ✅ **Purple dots** animate from broker to subscribers
-- ✅ **Client Stats:** 🟢 green dots (connected), `Rcv` counts increase, `Acks` shown for QoS 1
-- ✅ **Broker Stats:** `Received` = messages from publisher, Queue depth fluctuates
-- ✅ **Topic Heatmap:** Shows `sensor/temp` (10 msgs) and `sensor/humidity` (5 msgs) with gradient bars
-- ✅ **Queue Depth:** Increases during burst, decreases to 0
-- ✅ **Mobility:** Node 5 moves, disconnects (🔴), reconnects (🟢), `Reconnects=1` shown
-- ✅ **Reconnection Wave:** Shows "Node X reconnected" when clients come back in range
-- ✅ **Broker Failover:** Broker moves, clients reconnect if in range
+- **Purple dots** animate from broker to subscribers
+- **Client Stats:** 🟢 green dots (connected), `Rcv` counts increase, `Acks` shown for QoS 1
+- **Broker Stats:** `Received` = messages from publisher, Queue depth fluctuates
+- **Topic Heatmap:** Shows `sensor/temp` (10 msgs) and `sensor/humidity` (5 msgs) with gradient bars
+- **Queue Depth:** Increases during burst, decreases to 0
+- **Mobility:** Node 5 moves, disconnects (🔴), reconnects (🟢), `Reconnects=1` shown
+- **Reconnection Wave:** Shows "Node X reconnected" when clients come back in range
+- **Broker Failover:** Broker moves, clients reconnect if in range
 
 ---
 
@@ -234,10 +234,10 @@ npm run dev
 3. View results showing 5 different sleep ratios (0%, 20%, 40%, 60%, 80%)
 
 **Expected:**
-- ✅ Higher sleep ratio = Higher energy remaining
-- ✅ Higher sleep ratio = Higher latency (nodes sleep more)
-- ✅ PDR may decrease with very high sleep ratios
-- ✅ Results show clear trade-off between energy and performance
+- Higher sleep ratio = Higher energy remaining
+- Higher sleep ratio = Higher latency (nodes sleep more)
+- PDR may decrease with very high sleep ratios
+- Results show clear trade-off between energy and performance
 
 **Expected Results:**
 
@@ -263,11 +263,11 @@ npm run dev
 3. View side-by-side comparison
 
 **Expected:**
-- ✅ **WiFi**: Lower latency (faster data rate: 54 Mbps)
-- ✅ **WiFi**: Higher energy consumption (more power)
-- ✅ **BLE**: Higher latency (slower data rate: 1 Mbps)
-- ✅ **BLE**: Lower energy consumption (energy efficient)
-- ✅ Both achieve similar PDR in good conditions
+- **WiFi**: Lower latency (faster data rate: 54 Mbps)
+- **WiFi**: Higher energy consumption (more power)
+- **BLE**: Higher latency (slower data rate: 1 Mbps)
+- **BLE**: Lower energy consumption (energy efficient)
+- Both achieve similar PDR in good conditions
 
 **Expected Results:**
 
@@ -284,56 +284,6 @@ npm run dev
 
 ---
 
-## Visual Reference
-
-### Node Colors
-- 🟢 **Green** = Sensor
-- 🟠 **Amber** = Subscriber
-- 🩵 **Teal** = Publisher
-- 🩷 **Pink** = Broker (with yellow ring)
-
-### Packet Colors
-- 🔵 **Blue** = WiFi MAC packets
-- 🟡 **Yellow** = BLE MAC packets
-- 🟣 **Purple** = MQTT messages (broker → subscribers)
-- 🟢 **Green** = ACK packets (broker → publisher, subscribers → broker)
-
-### Connection States
-- 🟢 **Green dot** = Connected (in range)
-- 🔴 **Red dot** = Disconnected (out of range)
-
-### Indicators
-- **➤ Blue arrow** = Mobile node
-- **Yellow ring** = Broker node
-- **Queue: X** (amber) = Broker queue depth
-- **Reconnects=X** (yellow) = Reconnection count
-
----
-
-## Troubleshooting
-
-**MQTT packets not visible?**
-- Ensure simulation is running (click Start)
-- Verify subscribers are subscribed before publishing
-- Check clients are connected (🟢 green dot)
-
-**Reconnection wave not showing?**
-- Mobile nodes must move out of range first (>55 units for WiFi)
-- Reconnections only show for last 5 seconds
-- Check node has Mobile checkbox enabled
-
-**Topic heatmap empty?**
-- Publish messages first
-- Ensure subscribers are subscribed to topics
-- Messages must be delivered (clients connected)
-
-**Queue depth always 0?**
-- Use QoS 1 for queuing behavior
-- Publish messages rapidly (burst)
-- Check broker stats update (every 1 second)
-
----
-
 ## 📊 Summary
 
 This simulator implements a complete IoT network stack:
@@ -343,8 +293,6 @@ This simulator implements a complete IoT network stack:
 - **MQTT Protocol**: QoS 0/1, pub/sub, broker, keep-alive
 - **Mobility**: Random Waypoint with automatic reconnection
 - **Visualization**: Real-time packet animation and network state
-
-All features are testable through the web UI without any command-line tools.
 
 ---
 
