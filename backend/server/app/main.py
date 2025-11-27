@@ -41,7 +41,7 @@ def list_nodes():
 
 @app.post("/nodes", response_model=NodeView)
 def add_node(payload: NodeCreate):
-    nid = store.add_node(payload.role, payload.phy, payload.x, payload.y, payload.mobile, payload.speed)
+    nid = store.add_node(payload.role, payload.phy, payload.x, payload.y, payload.mobile, payload.speed, payload.sleepRatio)
     n = next(n for n in store.nodes if n.id == nid)
     return NodeView(
         id=n.id, role=n.role, phy=n.phy,
@@ -90,7 +90,21 @@ def metrics():
     duplicates = m.duplicates
     pdr = m.pdr
     avg_latency_ms = (m.rtt_ms_total / m.rtt_samples) if m.rtt_samples else 0.0
-    return MetricsView(now=now, pdr=pdr, avgLatencyMs=avg_latency_ms, delivered=delivered, duplicates=duplicates)
+    
+    # Calculate average energy and total awake time
+    total_energy = sum(n.energy for n in store.nodes)
+    avg_energy = total_energy / len(store.nodes) if store.nodes else 100.0
+    total_awake_time = sum(now * (1 - n.sleep_ratio) for n in store.nodes)
+    
+    return MetricsView(
+        now=now, 
+        pdr=pdr, 
+        avgLatencyMs=avg_latency_ms, 
+        delivered=delivered, 
+        duplicates=duplicates,
+        avgEnergy=avg_energy,
+        totalAwakeTime=total_awake_time
+    )
 
 # ---- network layer ----
 
@@ -255,3 +269,107 @@ def broker_relocate(broker_id: int, x: float, y: float):
     """Relocate broker (simulates failover)"""
     new_id = store.relocate_broker(broker_id, x, y)
     return {"ok": True, "broker_id": new_id, "x": x, "y": y}
+
+# ---- Experiments ----
+
+@app.post("/experiment/duty-cycle")
+async def run_duty_cycle_experiment():
+    """Run duty cycle experiment with different sleep ratios"""
+    results = []
+    sleep_ratios = [0.0, 0.2, 0.4, 0.6, 0.8]
+    
+    for sleep_ratio in sleep_ratios:
+        # Stop current simulation
+        store.running = False
+        await asyncio.sleep(0.5)
+        
+        # Reset simulation
+        store.reset()
+        
+        # Create topology: 3 nodes in a line (within WiFi range: 55 units)
+        n1 = store.add_node("sensor", "WiFi", 100, 100, sleep_ratio=sleep_ratio)
+        n2 = store.add_node("sensor", "WiFi", 130, 100, sleep_ratio=sleep_ratio)
+        n3 = store.add_node("sensor", "WiFi", 160, 100, sleep_ratio=sleep_ratio)
+        
+        # Start simulation
+        store.running = True
+        
+        # Wait for routing to stabilize (route advertisements happen every 5s)
+        await asyncio.sleep(6)
+        
+        # Send traffic from node 1 to node 3
+        enqueued = store.enqueue(n1, n3, n=30, size=100, kind="WiFi")
+        
+        # Wait for packets to be delivered
+        await asyncio.sleep(10)
+        
+        # Collect metrics
+        m = store.mac.metrics
+        avg_energy = sum(n.energy for n in store.nodes) / len(store.nodes) if store.nodes else 100.0
+        avg_latency = (m.rtt_ms_total / m.rtt_samples) if m.rtt_samples else 0.0
+        
+        results.append({
+            "sleep_ratio": sleep_ratio,
+            "avg_energy": avg_energy,
+            "avg_latency_ms": avg_latency,
+            "pdr": m.pdr,
+            "delivered": m.dequeued_ok,
+            "enqueued": enqueued,
+            "simulation_time": store.engine.now
+        })
+    
+    # Stop simulation
+    store.running = False
+    
+    return {"results": results}
+
+@app.post("/experiment/phy-comparison")
+async def run_phy_comparison():
+    """Compare BLE vs WiFi performance"""
+    results = {}
+    
+    for phy in ["WiFi", "BLE"]:
+        # Stop current simulation
+        store.running = False
+        await asyncio.sleep(0.5)
+        
+        # Reset simulation
+        store.reset()
+        
+        # Create topology: 3 nodes in a line (within range)
+        # BLE range: 15 units, WiFi range: 55 units
+        spacing = 12 if phy == "BLE" else 30
+        n1 = store.add_node("sensor", phy, 100, 100, sleep_ratio=0.0)
+        n2 = store.add_node("sensor", phy, 100 + spacing, 100, sleep_ratio=0.0)
+        n3 = store.add_node("sensor", phy, 100 + spacing * 2, 100, sleep_ratio=0.0)
+        
+        # Start simulation
+        store.running = True
+        
+        # Wait for routing (route advertisements happen every 5s)
+        await asyncio.sleep(6)
+        
+        # Send traffic from node 1 to node 3
+        enqueued = store.enqueue(n1, n3, n=30, size=100, kind=phy)
+        
+        # Wait for packets to be delivered
+        await asyncio.sleep(10)
+        
+        # Collect metrics
+        m = store.mac.metrics
+        avg_energy = sum(n.energy for n in store.nodes) / len(store.nodes) if store.nodes else 100.0
+        avg_latency = (m.rtt_ms_total / m.rtt_samples) if m.rtt_samples else 0.0
+        
+        results[phy] = {
+            "avg_energy": avg_energy,
+            "avg_latency_ms": avg_latency,
+            "pdr": m.pdr,
+            "delivered": m.dequeued_ok,
+            "simulation_time": store.engine.now,
+            "enqueued": enqueued
+        }
+    
+    # Stop simulation
+    store.running = False
+    
+    return {"results": results}

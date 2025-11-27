@@ -77,9 +77,9 @@ class Store:
         # Enqueue at current hop for forwarding
         self.mac.enqueue(forwarded_pkt)
 
-    def add_node(self, role: str, phy: str, x: float, y: float, mobile: bool = False, speed: float = 0.0) -> int:
+    def add_node(self, role: str, phy: str, x: float, y: float, mobile: bool = False, speed: float = 0.0, sleep_ratio: float = 0.2) -> int:
         nid = self._next_id; self._next_id += 1
-        node = Node(id=nid, role=role, phy=phy, pos=Position(x, y), is_broker=(role=="broker"), mobile=mobile, speed=speed)
+        node = Node(id=nid, role=role, phy=phy, pos=Position(x, y), is_broker=(role=="broker"), mobile=mobile, speed=speed, sleep_ratio=sleep_ratio)
         self.nodes.append(node)
         kind = "BLE" if phy == "BLE" else ("WiFi" if phy == "WiFi" else "Zigbee")
         self.mac.add_node(node_id=nid, kind=kind)

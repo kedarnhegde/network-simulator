@@ -56,6 +56,7 @@ class NodeCreate(BaseModel):
     y: float = Field(ge=0)
     mobile: bool = False
     speed: float = 0.0
+    sleepRatio: float = 0.2
 
 class NodeView(BaseModel):
     id: int
@@ -76,6 +77,8 @@ class MetricsView(BaseModel):
     avgLatencyMs: float
     delivered: int
     duplicates: int
+    avgEnergy: float
+    totalAwakeTime: float
 
 class RouteEntryView(BaseModel):
     dest: int

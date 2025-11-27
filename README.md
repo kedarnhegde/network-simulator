@@ -222,6 +222,68 @@ npm run dev
 
 ---
 
+## Test 5: Experiments
+
+### Experiment 1: Duty Cycle Impact
+
+**Goal:** Measure how sleep ratio affects energy consumption and latency.
+
+**Steps:**
+1. Click **E1: Duty Cycle Impact** button in **Experiments** panel
+2. Wait ~60 seconds for experiment to complete (button shows "Running...")
+3. View results showing 5 different sleep ratios (0%, 20%, 40%, 60%, 80%)
+
+**Expected:**
+- ✅ Higher sleep ratio = Higher energy remaining
+- ✅ Higher sleep ratio = Higher latency (nodes sleep more)
+- ✅ PDR may decrease with very high sleep ratios
+- ✅ Results show clear trade-off between energy and performance
+
+**Expected Results:**
+
+| Sleep Ratio | Energy | Latency | PDR | Delivered | Time |
+|-------------|--------|---------|-----|-----------|------|
+| 0% | ~92% | ~1600ms | 1.00 | 30/30 | ~15s |
+| 20% | ~94% | ~1600ms | 1.00 | 30/30 | ~15s |
+| 40% | ~95% | ~1600ms | 1.00 | 30/30 | ~15s |
+| 60% | ~97% | ~1600ms | 1.00 | 30/30 | ~15s |
+| 80% | ~98% | ~1600ms | 1.00 | 30/30 | ~15s |
+
+**Key Insight:** Higher sleep ratio = More energy saved (nodes sleep more)
+
+---
+
+### Experiment 2: BLE vs WiFi Comparison
+
+**Goal:** Compare BLE and WiFi performance in same scenario.
+
+**Steps:**
+1. Click **E2: BLE vs WiFi** button in **Experiments** panel
+2. Wait ~25 seconds for experiment to complete (button shows "Running...")
+3. View side-by-side comparison
+
+**Expected:**
+- ✅ **WiFi**: Lower latency (faster data rate: 54 Mbps)
+- ✅ **WiFi**: Higher energy consumption (more power)
+- ✅ **BLE**: Higher latency (slower data rate: 1 Mbps)
+- ✅ **BLE**: Lower energy consumption (energy efficient)
+- ✅ Both achieve similar PDR in good conditions
+
+**Expected Results:**
+
+| PHY | Energy | Latency | PDR | Delivered | Time |
+|-----|--------|---------|-----|-----------|------|
+| WiFi | ~92% | ~1600ms | 1.00 | 30/30 | ~15s |
+| BLE | ~98% | ~1600ms | 1.00 | 30/30 | ~15s |
+
+**Key Insights:**
+- **WiFi**: Consumes 7.6% energy (high power consumption)
+- **BLE**: Consumes 1.5% energy (5x more efficient)
+- Latency similar (both use multi-hop routing)
+- **Choose WiFi for high-throughput, BLE for battery-powered devices**
+
+---
+
 ## Visual Reference
 
 ### Node Colors
