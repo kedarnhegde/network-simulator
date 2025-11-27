@@ -80,21 +80,6 @@ make run-frontend
 
 ## 🧪 Complete Testing Guide
 
-### Prerequisites
-
-**Terminal 1 - Backend:**
-```bash
-source .venv/bin/activate
-make run-backend
-```
-
-**Terminal 2 - Frontend:**
-```bash
-cd frontend
-npm install  # first time only
-npm run dev
-```
-
 **Browser:** Open http://localhost:5173
 
 ---
@@ -113,7 +98,7 @@ npm run dev
    - Role: `sensor`, PHY: `BLE`, X: `200`, Y: `100` (out of range)
 5. Click **Start** button
 6. Wait 5 seconds
-7. Check **Metrics** panel
+7. Pass traffic between nodes
 
 **Expected:**
 - Simulation time (`now`) increases
@@ -211,64 +196,76 @@ npm run dev
    - Relocate back: X: `100`, Y: `100`, Click **Relocate**
 
 **Expected:**
-- ✅ **Purple dots** animate from broker to subscribers
-- ✅ **Client Stats:** 🟢 green dots (connected), `Rcv` counts increase, `Acks` shown for QoS 1
-- ✅ **Broker Stats:** `Received` = messages from publisher, Queue depth fluctuates
-- ✅ **Topic Heatmap:** Shows `sensor/temp` (10 msgs) and `sensor/humidity` (5 msgs) with gradient bars
-- ✅ **Queue Depth:** Increases during burst, decreases to 0
-- ✅ **Mobility:** Node 5 moves, disconnects (🔴), reconnects (🟢), `Reconnects=1` shown
-- ✅ **Reconnection Wave:** Shows "Node X reconnected" when clients come back in range
-- ✅ **Broker Failover:** Broker moves, clients reconnect if in range
+- **Purple dots** animate from broker to subscribers
+- **Client Stats:** 🟢 green dots (connected), `Rcv` counts increase, `Acks` shown for QoS 1
+- **Broker Stats:** `Received` = messages from publisher, Queue depth fluctuates
+- **Topic Heatmap:** Shows `sensor/temp` (10 msgs) and `sensor/humidity` (5 msgs) with gradient bars
+- **Queue Depth:** Increases during burst, decreases to 0
+- **Mobility:** Node 5 moves, disconnects (🔴), reconnects (🟢), `Reconnects=1` shown
+- **Reconnection Wave:** Shows "Node X reconnected" when clients come back in range
+- **Broker Failover:** Broker moves, clients reconnect if in range
 
 ---
 
-## Visual Reference
+## Test 5: Experiments
 
-### Node Colors
-- 🟢 **Green** = Sensor
-- 🟠 **Amber** = Subscriber
-- 🩵 **Teal** = Publisher
-- 🩷 **Pink** = Broker (with yellow ring)
+### Experiment 1: Duty Cycle Impact
 
-### Packet Colors
-- 🔵 **Blue** = WiFi MAC packets
-- 🟡 **Yellow** = BLE MAC packets
-- 🟣 **Purple** = MQTT messages (broker → subscribers)
-- 🟢 **Green** = ACK packets (broker → publisher, subscribers → broker)
+**Goal:** Measure how sleep ratio affects energy consumption and latency.
 
-### Connection States
-- 🟢 **Green dot** = Connected (in range)
-- 🔴 **Red dot** = Disconnected (out of range)
+**Steps:**
+1. Click **E1: Duty Cycle Impact** button in **Experiments** panel
+2. Wait ~60 seconds for experiment to complete (button shows "Running...")
+3. View results showing 5 different sleep ratios (0%, 20%, 40%, 60%, 80%)
 
-### Indicators
-- **➤ Blue arrow** = Mobile node
-- **Yellow ring** = Broker node
-- **Queue: X** (amber) = Broker queue depth
-- **Reconnects=X** (yellow) = Reconnection count
+**Expected:**
+- Higher sleep ratio = Higher energy remaining
+- Higher sleep ratio = Higher latency (nodes sleep more)
+- PDR may decrease with very high sleep ratios
+- Results show clear trade-off between energy and performance
+
+**Expected Results:**
+
+| Sleep Ratio | Energy | Latency | PDR | Delivered | Time |
+|-------------|--------|---------|-----|-----------|------|
+| 0% | ~92% | ~1600ms | 1.00 | 30/30 | ~15s |
+| 20% | ~94% | ~1600ms | 1.00 | 30/30 | ~15s |
+| 40% | ~95% | ~1600ms | 1.00 | 30/30 | ~15s |
+| 60% | ~97% | ~1600ms | 1.00 | 30/30 | ~15s |
+| 80% | ~98% | ~1600ms | 1.00 | 30/30 | ~15s |
+
+**Key Insight:** Higher sleep ratio = More energy saved (nodes sleep more)
 
 ---
 
-## Troubleshooting
+### Experiment 2: BLE vs WiFi Comparison
 
-**MQTT packets not visible?**
-- Ensure simulation is running (click Start)
-- Verify subscribers are subscribed before publishing
-- Check clients are connected (🟢 green dot)
+**Goal:** Compare BLE and WiFi performance in same scenario.
 
-**Reconnection wave not showing?**
-- Mobile nodes must move out of range first (>55 units for WiFi)
-- Reconnections only show for last 5 seconds
-- Check node has Mobile checkbox enabled
+**Steps:**
+1. Click **E2: BLE vs WiFi** button in **Experiments** panel
+2. Wait ~25 seconds for experiment to complete (button shows "Running...")
+3. View side-by-side comparison
 
-**Topic heatmap empty?**
-- Publish messages first
-- Ensure subscribers are subscribed to topics
-- Messages must be delivered (clients connected)
+**Expected:**
+- **WiFi**: Lower latency (faster data rate: 54 Mbps)
+- **WiFi**: Higher energy consumption (more power)
+- **BLE**: Higher latency (slower data rate: 1 Mbps)
+- **BLE**: Lower energy consumption (energy efficient)
+- Both achieve similar PDR in good conditions
 
-**Queue depth always 0?**
-- Use QoS 1 for queuing behavior
-- Publish messages rapidly (burst)
-- Check broker stats update (every 1 second)
+**Expected Results:**
+
+| PHY | Energy | Latency | PDR | Delivered | Time |
+|-----|--------|---------|-----|-----------|------|
+| WiFi | ~92% | ~1600ms | 1.00 | 30/30 | ~15s |
+| BLE | ~98% | ~1600ms | 1.00 | 30/30 | ~15s |
+
+**Key Insights:**
+- **WiFi**: Consumes 7.6% energy (high power consumption)
+- **BLE**: Consumes 1.5% energy (5x more efficient)
+- Latency similar (both use multi-hop routing)
+- **Choose WiFi for high-throughput, BLE for battery-powered devices**
 
 ---
 
@@ -281,8 +278,6 @@ This simulator implements a complete IoT network stack:
 - **MQTT Protocol**: QoS 0/1, pub/sub, broker, keep-alive
 - **Mobility**: Random Waypoint with automatic reconnection
 - **Visualization**: Real-time packet animation and network state
-
-All features are testable through the web UI without any command-line tools.
 
 ---
 
