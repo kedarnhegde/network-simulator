@@ -80,21 +80,6 @@ make run-frontend
 
 ## 🧪 Complete Testing Guide
 
-### Prerequisites
-
-**Terminal 1 - Backend:**
-```bash
-source .venv/bin/activate
-make run-backend
-```
-
-**Terminal 2 - Frontend:**
-```bash
-cd frontend
-npm install  # first time only
-npm run dev
-```
-
 **Browser:** Open http://localhost:5173
 
 ---
@@ -113,7 +98,7 @@ npm run dev
    - Role: `sensor`, PHY: `BLE`, X: `200`, Y: `100` (out of range)
 5. Click **Start** button
 6. Wait 5 seconds
-7. Check **Metrics** panel
+7. Pass traffic between nodes
 
 **Expected:**
 - Simulation time (`now`) increases
