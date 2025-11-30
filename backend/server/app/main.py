@@ -175,17 +175,39 @@ def mqtt_publish(publisher_id: int, topic: str, payload: str, qos: int = 0, reta
     store._next_msg_id += 1
     
     message = client.publish_message(topic, payload, qos, retained, msg_id)
-    broker = store.mqtt_brokers[broker_id]
-    deliveries, needs_pub_ack = broker.publish(message)
     
-    # Queue MQTT messages for network delivery (respects range/connectivity)
-    store.mqtt_pending_deliveries.extend(deliveries)
+    # Add publisher→broker packet animation
+    pub_pkt_id = f"pub-{publisher_id}-{broker_id}-{msg_id}"
+    pub_node = next((n for n in store.nodes if n.id == publisher_id), None)
+    broker_node = next((n for n in store.nodes if n.id == broker_id), None)
+    if pub_node and broker_node:
+        store.mqtt_packets_in_flight.append({
+            'id': pub_pkt_id,
+            'src_id': publisher_id,
+            'dst_id': broker_id,
+            'src_x': pub_node.pos.x,
+            'src_y': pub_node.pos.y,
+            'dst_x': broker_node.pos.x,
+            'dst_y': broker_node.pos.y,
+            'progress': 0.0,
+            'kind': pub_node.phy,
+            'topic': message.topic,
+            'is_publish': True,
+            'msg_id': msg_id
+        })
+    
+    # Queue broker publish to happen AFTER publisher->broker packet arrives
+    store.mqtt_pending_broker_publish.append((broker_id, message, pub_pkt_id))
+    
+    # Get subscriber count for response (before actual publish)
+    broker = store.mqtt_brokers[broker_id]
+    subscriber_count = len(broker.subscriptions.get(message.topic, {}))
     
     # Queue publisher ACK if QoS 1
-    if needs_pub_ack:
+    if qos == 1:
         store.mqtt_pending_pub_acks.append((publisher_id, broker_id, msg_id))
     
-    return {"ok": True, "msg_id": msg_id, "subscribers": len(deliveries)}
+    return {"ok": True, "msg_id": msg_id, "subscribers": subscriber_count}
 
 @app.get("/mqtt/stats")
 def mqtt_stats():

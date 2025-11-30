@@ -237,7 +237,7 @@ export default function TopologyCanvas({ nodes, width = 1200, height = 700, onDe
     const interval = setInterval(() => {
       setPackets(prev => 
         prev
-          .map(p => ({ ...p, progress: p.progress + 0.015 }))
+          .map(p => ({ ...p, progress: p.progress + 0.025 }))
           .filter(p => p.progress < 1)
       );
     }, 16);

@@ -15,7 +15,7 @@ export default function RoutingPanel() {
               {rt.routes.length === 0 ? <div className="text-slate-400">No routes</div> :
                 <ul className="list-disc pl-5">
                   {rt.routes.map(r => (
-                    <li key={`${r.dest}-${r.nextHop}`}>dest {r.dest} → nextHop {r.nextHop} (metric {r.metric})</li>
+                    <li key={`${r.dest}-${r.nextHop}`}>dest {r.dest} → nextHop {r.nextHop}</li>
                   ))}
                 </ul>
               }

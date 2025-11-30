@@ -142,7 +142,7 @@ make run-frontend
 
 **Steps:**
 1. Click **Reset**
-2. Create 3 BLE nodes in a line:
+2. Create 3 WiFi nodes in a line:
    - Node 1: Role: `sensor`, PHY: `WiFi`, X: `100`, Y: `100`
    - Node 2: Role: `sensor`, PHY: `WiFi`, X: `100`, Y: `140` (relay)
    - Node 3: Role: `sensor`, PHY: `WiFi`, X: `100`, Y: `180`
@@ -217,6 +217,7 @@ make run-frontend
 1. Click **E1: Duty Cycle Impact** button in **Experiments** panel
 2. Wait ~60 seconds for experiment to complete (button shows "Running...")
 3. View results showing 5 different sleep ratios (0%, 20%, 40%, 60%, 80%)
+4. Click **Download CSV** to export results for your report
 
 **Expected:**
 - Higher sleep ratio = Higher energy remaining
@@ -246,6 +247,7 @@ make run-frontend
 1. Click **E2: BLE vs WiFi** button in **Experiments** panel
 2. Wait ~25 seconds for experiment to complete (button shows "Running...")
 3. View side-by-side comparison
+4. Click **Download CSV** to export results for your report
 
 **Expected:**
 - **WiFi**: Lower latency (faster data rate: 54 Mbps)

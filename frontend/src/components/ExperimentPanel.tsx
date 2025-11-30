@@ -1,6 +1,32 @@
 import { useState } from "react";
 import { api } from "../api/client";
 
+const generateDutyCycleCSV = (data: any[]) => {
+  const headers = "Sleep Ratio,Energy (%),Latency (ms),PDR,Delivered,Enqueued,Time (s)";
+  const rows = data.map(r => 
+    `${(r.sleep_ratio * 100).toFixed(0)},${r.avg_energy.toFixed(1)},${r.avg_latency_ms.toFixed(1)},${r.pdr.toFixed(2)},${r.delivered},${r.enqueued},${r.simulation_time.toFixed(1)}`
+  );
+  return [headers, ...rows].join("\n");
+};
+
+const generatePhyComparisonCSV = (data: any) => {
+  const headers = "PHY,Energy (%),Latency (ms),PDR,Delivered,Enqueued,Time (s)";
+  const rows = Object.entries(data).map(([phy, r]: [string, any]) => 
+    `${phy},${r.avg_energy.toFixed(1)},${r.avg_latency_ms.toFixed(1)},${r.pdr.toFixed(2)},${r.delivered},${r.enqueued},${r.simulation_time.toFixed(1)}`
+  );
+  return [headers, ...rows].join("\n");
+};
+
+const downloadCSV = (csv: string, filename: string) => {
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
 export default function ExperimentPanel() {
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<any>(null);
@@ -49,6 +75,20 @@ export default function ExperimentPanel() {
         >
           {running ? "Running..." : "E2: BLE vs WiFi"}
         </button>
+        
+        {results && (
+          <button
+            onClick={() => {
+              const csv = results.type === "duty-cycle" 
+                ? generateDutyCycleCSV(results.data)
+                : generatePhyComparisonCSV(results.data);
+              downloadCSV(csv, `${results.type}-results.csv`);
+            }}
+            className="w-full px-3 py-2 rounded bg-green-600 hover:bg-green-500 text-xs"
+          >
+            Download CSV
+          </button>
+        )}
 
         {results && (
           <div className="border-t border-slate-700 pt-3 mt-3">

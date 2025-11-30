@@ -25,6 +25,7 @@ class Store:
         self.mqtt_pending_pub_acks: List[tuple] = []  # (publisher_id, broker_id, msg_id) pending publisher ACKs
         self.mqtt_pending_sub_acks: List[tuple] = []  # (sub_id, broker_id, msg_id, pkt_id) pending subscriber ACKs
         self.mqtt_sub_acks_received: Dict[int, set] = {}  # msg_id -> set of sub_ids that ACKed
+        self.mqtt_pending_broker_publish: List[tuple] = []  # (broker_id, message, pub_pkt_id) waiting for pub->broker to complete
         self.mobility_models: Dict[int, MobilityModel] = {}  # node_id -> MobilityModel
         self.mqtt_packets_in_flight: List[dict] = []  # MQTT packet animations
         self.mqtt_ack_packets: List[dict] = []  # ACK packet animations
@@ -149,6 +150,7 @@ class Store:
         self.mqtt_pending_pub_acks.clear()
         self.mqtt_pending_sub_acks.clear()
         self.mqtt_sub_acks_received.clear()
+        self.mqtt_pending_broker_publish.clear()
         self.mobility_models.clear()
         self.mqtt_packets_in_flight.clear()
         self.mqtt_ack_packets.clear()
@@ -340,14 +342,30 @@ class Store:
         
         # Update MQTT packet animations (faster)
         self.mqtt_packets_in_flight = [
-            {**p, 'progress': p['progress'] + 0.05} 
+            {**p, 'progress': p['progress'] + 0.1} 
             for p in self.mqtt_packets_in_flight 
             if p['progress'] < 1.0
         ]
         
+        # Check for completed publisher->broker packets and trigger broker publish
+        completed_pub_packets = {p['id'] for p in self.mqtt_packets_in_flight if p.get('is_publish') and p['progress'] >= 0.95}
+        remaining_broker_publish = []
+        for broker_id, message, pub_pkt_id in self.mqtt_pending_broker_publish:
+            if pub_pkt_id in completed_pub_packets:
+                # Publisher->broker packet arrived, now broker can forward to subscribers
+                if broker_id in self.mqtt_brokers:
+                    broker = self.mqtt_brokers[broker_id]
+                    deliveries, _ = broker.publish(message)
+                    self.mqtt_pending_deliveries.extend(deliveries)
+            else:
+                # Still waiting for publisher->broker packet
+                remaining_broker_publish.append((broker_id, message, pub_pkt_id))
+        
+        self.mqtt_pending_broker_publish = remaining_broker_publish
+        
         # Update ACK packet animations (faster)
         self.mqtt_ack_packets = [
-            {**p, 'progress': p['progress'] + 0.05} 
+            {**p, 'progress': p['progress'] + 0.1} 
             for p in self.mqtt_ack_packets 
             if p['progress'] < 1.0
         ]
