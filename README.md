@@ -111,6 +111,12 @@ make run-frontend
 - **MAC Layer:** Blue dots animate between nodes; Some latency due to backoff; PDR close to 1.0
 - **Network Layer:** Packets hop 1→2→3; Higher latency than single-hop; Routing tables show node 2 as next hop
 
+### Video - 
+
+
+https://github.com/user-attachments/assets/83fa7c90-2d46-4f03-9f81-531c2caa0020
+
+
 ---
 
 ## Test 2: MQTT Protocol & Advanced Features
@@ -157,6 +163,14 @@ make run-frontend
 - **Reconnection Wave:** Shows "Node X reconnected" when clients come back in range
 - **Broker Failover:** Broker moves, clients reconnect if in range
 
+### Video - 
+
+
+
+
+https://github.com/user-attachments/assets/c3eb0440-755c-4f30-8ebd-a0b7dcc9a8c1
+
+
 ---
 
 ## Test 3: Experiments
@@ -189,6 +203,14 @@ make run-frontend
 
 **Key Insight:** Higher sleep ratio = More energy saved (nodes sleep more)
 
+### Video - 
+
+
+
+https://github.com/user-attachments/assets/c75dd791-4f35-4dd0-be7b-626e7b87b9b8
+
+
+
 ---
 
 ### Experiment 2: BLE vs WiFi Comparison
@@ -220,6 +242,14 @@ make run-frontend
 - **BLE**: Consumes 1.5% energy (5x more efficient)
 - Latency similar (both use multi-hop routing)
 - **Choose WiFi for high-throughput, BLE for battery-powered devices**
+
+### Video - 
+
+
+
+https://github.com/user-attachments/assets/8c5f47d0-7faa-42e6-86a5-7cb963fde93e
+
+
 
 ---
 
