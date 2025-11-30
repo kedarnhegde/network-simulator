@@ -44,8 +44,8 @@ make run-frontend
 ## 🧱 Features
 
 ### Physical Layer
-- WiFi (range: 55 units, 54 Mbps)
-- BLE (range: 15 units, 1 Mbps)
+- WiFi (range: 55 units)
+- BLE (range: 15 units)
 - Energy consumption modeling
 
 ### MAC Layer
@@ -84,61 +84,9 @@ make run-frontend
 
 ---
 
-## Test 1: Physical Layer (Range & Energy)
+## Test 1: Physical, MAC & Network Layers
 
-**Goal:** Verify WiFi/BLE range limits and energy consumption.
-
-**Steps:**
-1. Click **Reset** button
-2. Click **Add Node** button:
-   - Role: `sensor`, PHY: `WiFi`, X: `100`, Y: `100`
-3. Click **Add Node** again:
-   - Role: `sensor`, PHY: `WiFi`, X: `140`, Y: `100` (within WiFi range)
-4. Click **Add Node** again:
-   - Role: `sensor`, PHY: `BLE`, X: `200`, Y: `100` (out of range)
-5. Click **Start** button
-6. Wait 5 seconds
-7. Pass traffic between nodes
-
-**Expected:**
-- Simulation time (`now`) increases
-- Energy decreases for all nodes
-- Nodes 1 & 2 can communicate (within 55 units)
-- Node 3 isolated (BLE range only 15 units)
-
----
-
-## Test 2: MAC Layer (CSMA/CA)
-
-**Goal:** Test channel contention and collision handling.
-
-**Steps:**
-1. Click **Reset**
-2. Create 3 nodes:
-   - Node 1: Role: `sensor`, PHY: `WiFi`, X: `100`, Y: `100`
-   - Node 2: Role: `sensor`, PHY: `WiFi`, X: `100`, Y: `140`
-   - Node 3: Role: `sensor`, PHY: `WiFi`, X: `100`, Y: `180`
-3. Click **Start**
-4. In **Traffic** panel:
-   - Src: `1`, Dst: `2`, N: `20`, Size: `200`, PHY: `WiFi`
-   - Click **Send**
-5. Immediately send more:
-   - Src: `3`, Dst: `2`, N: `20`, Size: `200`, PHY: `WiFi`
-   - Click **Send**
-6. Watch canvas for blue packet animations
-7. Check **Metrics** panel after 5 seconds
-
-**Expected:**
-- Blue dots animate between nodes
-- Packets delivered (check `delivered` count)
-- Some latency due to backoff (check `avgLatencyMs`)
-- PDR close to 1.0 (successful delivery)
-
----
-
-## Test 3: Network Layer (Multi-hop Routing)
-
-**Goal:** Verify packets route through intermediate nodes.
+**Goal:** Verify WiFi/BLE range, energy consumption, CSMA/CA collision handling, and multi-hop routing.
 
 **Steps:**
 1. Click **Reset**
@@ -146,22 +94,26 @@ make run-frontend
    - Node 1: Role: `sensor`, PHY: `WiFi`, X: `100`, Y: `100`
    - Node 2: Role: `sensor`, PHY: `WiFi`, X: `100`, Y: `140` (relay)
    - Node 3: Role: `sensor`, PHY: `WiFi`, X: `100`, Y: `180`
-3. Click **Start**
-4. Wait 5 seconds (for routing tables to build)
-5. In **Traffic** panel:
-   - Src: `1`, Dst: `3`, N: `10`, Size: `100`, PHY: `BLE`
+3. Add BLE node out of range:
+   - Node 4: Role: `sensor`, PHY: `BLE`, X: `200`, Y: `100`
+4. Click **Start**
+5. Wait 5 seconds (for routing tables to build)
+6. Send traffic to test multi-hop:
+   - Src: `1`, Dst: `3`, N: `10`, Size: `100`, PHY: `WiFi`
    - Click **Send**
-6. Watch packets hop: 1 → 2 → 3
+7. Send concurrent traffic to test CSMA/CA:
+   - Src: `3`, Dst: `1`, N: `20`, Size: `200`, PHY: `WiFi`
+   - Click **Send**
+8. Watch packet animations and check **Metrics** panel
 
 **Expected:**
-- Blue dots animate 1→2, then 2→3
-- Packets delivered to node 3
-- Higher latency than single-hop
-- Routing tables show node 2 as next hop
+- **Physical Layer:** Energy decreases for all nodes; Node 4 isolated (BLE range only 15 units)
+- **MAC Layer:** Blue dots animate between nodes; Some latency due to backoff; PDR close to 1.0
+- **Network Layer:** Packets hop 1→2→3; Higher latency than single-hop; Routing tables show node 2 as next hop
 
 ---
 
-## Test 4: MQTT Protocol & Advanced Features
+## Test 2: MQTT Protocol & Advanced Features
 
 **Goal:** Test MQTT pub/sub, QoS levels, topic heatmap, queue depth, mobility, and broker failover.
 
@@ -207,7 +159,7 @@ make run-frontend
 
 ---
 
-## Test 5: Experiments
+## Test 3: Experiments
 
 ### Experiment 1: Duty Cycle Impact
 
