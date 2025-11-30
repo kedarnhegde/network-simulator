@@ -176,24 +176,23 @@ class Mac:
         self.metrics.pdr = (self.metrics.dequeued_ok / sent) if sent else 0.0
 
     def delivered(self, st: NodeMac, pkt: Packet):                  
-        key = (pkt.src_id, pkt.dst_id, pkt.seq)                     # duplicate detection 
-        duplicate = key in self.seen
-        if duplicate:
-            self.metrics.duplicates += 1
-        else:                                                       # update success counters
-            self.seen.add(key)
-            
-            # Check if packet reached final destination or needs forwarding
-            if pkt.next_hop_id == pkt.dst_id:
-                # Reached final destination
+        # Check if packet reached final destination or needs forwarding
+        if pkt.next_hop_id == pkt.dst_id:
+            # Reached final destination - check for duplicates
+            key = (pkt.src_id, pkt.dst_id, pkt.seq)
+            duplicate = key in self.seen
+            if duplicate:
+                self.metrics.duplicates += 1
+            else:
+                self.seen.add(key)
                 self.metrics.dequeued_ok += 1
                 self.metrics.bytes_ok += pkt.size_bytes
                 now_ms = self.slot_index * self.cfg.slot_ms
                 self.metrics.rtt_samples += 1
                 self.metrics.rtt_ms_total += max(0.0, now_ms - pkt.t_created * 1000.0)
-            elif self.forward_callback:
-                # Intermediate hop - forward packet
-                self.forward_callback(pkt)
+        elif self.forward_callback:
+            # Intermediate hop - forward packet (not a duplicate, just forwarding)
+            self.forward_callback(pkt)
         
         st.queue.pop()                                              # dequeue packet and reset backoff state
         st.retry_count = 0
