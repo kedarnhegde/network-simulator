@@ -210,39 +210,33 @@ export default function TopologyCanvas({ nodes, width = 1200, height = 700, onDe
     }, 100);
     return () => clearInterval(interval);
   }, []);
-
-  // Expose method to add packets
-  useEffect(() => {
-    (window as any).addPacket = (srcId: number, dstId: number, kind: string) => {
-      const src = nodes.find(n => n.id === srcId);
-      const dst = nodes.find(n => n.id === dstId);
-      if (!src || !dst) return;
-      
-      setPackets(prev => [...prev, {
-        id: `${Date.now()}-${Math.random()}`,
-        srcId,
-        dstId,
-        srcX: src.x,
-        srcY: src.y,
-        dstX: dst.x,
-        dstY: dst.y,
-        progress: 0,
-        kind: kind as any
-      }]);
-    };
-  }, [nodes]);
   
-  // Update MAC packet positions
+  // Poll for MAC packets
   useEffect(() => {
-    const interval = setInterval(() => {
-      setPackets(prev => 
-        prev
-          .map(p => ({ ...p, progress: p.progress + 0.025 }))
-          .filter(p => p.progress < 1)
-      );
-    }, 16);
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("http://localhost:8000/mac/packets");
+        const data = await res.json();
+        const macPackets = (data.packets || []).map((p: any) => ({
+          id: `${p.src_id}-${p.dst_id}-${p.progress}`,
+          srcId: p.src_id,
+          dstId: p.dst_id,
+          srcX: p.src_x,
+          srcY: p.src_y,
+          dstX: p.dst_x,
+          dstY: p.dst_y,
+          progress: p.progress,
+          kind: p.kind
+        }));
+        setPackets(macPackets);
+      } catch (e) {
+        // Ignore errors
+      }
+    }, 100);
     return () => clearInterval(interval);
   }, []);
+
+
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = ref.current;

@@ -190,6 +190,11 @@ export default function MqttPanel() {
                 <div>Topics={c.subscribed_topics.join(", ") || "none"}</div>
                 <div>Pub={c.stats.messages_published} Rcv={c.stats.messages_received} Acks={c.stats.acks_sent}</div>
                 {c.stats.reconnects > 0 && <div className="text-yellow-500">Reconnects={c.stats.reconnects}</div>}
+                {c.latest_message && (
+                  <div className="mt-1 text-cyan-300">
+                    Latest: {c.latest_message.topic} = "{c.latest_message.payload}" (from node {c.latest_message.publisher_id})
+                  </div>
+                )}
               </div>
             ))}
           </div>

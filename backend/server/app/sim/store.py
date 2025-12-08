@@ -28,6 +28,7 @@ class Store:
         self.mqtt_pending_broker_publish: List[tuple] = []  # (broker_id, message, pub_pkt_id) waiting for pub->broker to complete
         self.mobility_models: Dict[int, MobilityModel] = {}  # node_id -> MobilityModel
         self.mqtt_packets_in_flight: List[dict] = []  # MQTT packet animations
+        self.mac_packets_in_flight: List[dict] = []  # MAC packet animations
         self.mqtt_ack_packets: List[dict] = []  # ACK packet animations
         self.reconnection_wave: List[tuple] = []  # (node_id, timestamp) for reconnection tracking
         self.topic_message_counts: Dict[str, int] = {}  # topic -> message count (for heatmap)
@@ -77,6 +78,22 @@ class Store:
         
         # Enqueue at current hop for forwarding
         self.mac.enqueue(forwarded_pkt)
+        
+        # Add animation for forwarded hop
+        src_node = next((n for n in self.nodes if n.id == current_hop), None)
+        dst_node = next((n for n in self.nodes if n.id == next_hop), None)
+        if src_node and dst_node:
+            self.mac_packets_in_flight.append({
+                'src_id': current_hop,
+                'dst_id': next_hop,
+                'src_x': src_node.pos.x,
+                'src_y': src_node.pos.y,
+                'dst_x': dst_node.pos.x,
+                'dst_y': dst_node.pos.y,
+                'progress': 0.0,
+                'kind': pkt.kind,
+                'seq': pkt.seq
+            })
 
     def add_node(self, role: str, phy: str, x: float, y: float, mobile: bool = False, speed: float = 0.0, sleep_ratio: float = 0.2) -> int:
         nid = self._next_id; self._next_id += 1
@@ -153,6 +170,7 @@ class Store:
         self.mqtt_pending_broker_publish.clear()
         self.mobility_models.clear()
         self.mqtt_packets_in_flight.clear()
+        self.mac_packets_in_flight.clear()
         self.mqtt_ack_packets.clear()
         self.reconnection_wave.clear()
         self.topic_message_counts.clear()
@@ -186,6 +204,22 @@ class Store:
         # Check if source can reach next hop
         if not self._check_range(src_id, next_hop):
             return 0
+        
+        # Add initial animation for first hop (one per packet)
+        next_hop_node = next((x for x in self.nodes if x.id == next_hop), None)
+        if next_hop_node:
+            for i in range(n):
+                self.mac_packets_in_flight.append({
+                    'src_id': src_id,
+                    'dst_id': next_hop,
+                    'src_x': src_node.pos.x,
+                    'src_y': src_node.pos.y,
+                    'dst_x': next_hop_node.pos.x,
+                    'dst_y': next_hop_node.pos.y,
+                    'progress': i * 0.02,
+                    'kind': kind,
+                    'seq': self._next_seq + i
+                })
         
         for _ in range(n):
             # Create packet with next_hop_id for MAC layer
@@ -243,8 +277,8 @@ class Store:
                         
                         # All neighbors process the advertisement
                         for neighbor_id in neighbors:
-                            self.network.process_route_advertisement(ad, neighbor_id, 
-                                                                    self.get_neighbors(neighbor_id))
+                            receiver_neighbors = self.get_neighbors(neighbor_id)
+                            self.network.process_route_advertisement(ad, neighbor_id, receiver_neighbors)
                 
                 # MAC layer slots
                 self._accum += dt
@@ -344,6 +378,13 @@ class Store:
         self.mqtt_packets_in_flight = [
             {**p, 'progress': p['progress'] + 0.1} 
             for p in self.mqtt_packets_in_flight 
+            if p['progress'] < 1.0
+        ]
+        
+        # Update MAC packet animations
+        self.mac_packets_in_flight = [
+            {**p, 'progress': p['progress'] + 0.025}
+            for p in self.mac_packets_in_flight
             if p['progress'] < 1.0
         ]
         

@@ -94,7 +94,7 @@ class Mac:
     """"
     Main MAC engine
     """
-    def __init__(self, seed: int = 123, cfg: Optional[MacConfig] = None, range_checker=None, forward_callback=None):
+    def __init__(self, seed: int = 123, cfg: Optional[MacConfig] = None, range_checker=None, forward_callback=None, tx_start_callback=None):
         self.cfg = cfg or MacConfig()                               # initializer 
         self.rng = random.Random(seed)
         self.channel = Channel()
@@ -104,6 +104,7 @@ class Mac:
         self.slot_index = 0
         self.range_checker = range_checker  # Callback to check if nodes are in range
         self.forward_callback = forward_callback  # Callback to forward packets at intermediate nodes
+        self.tx_start_callback = tx_start_callback  # Callback when transmission starts
 
     def add_node(self, node_id: int, kind: MacKind = "WiFi"):
         if node_id in self.nodes: return                            # reguster node with empty TxQueue

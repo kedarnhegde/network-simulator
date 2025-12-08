@@ -218,11 +218,21 @@ def mqtt_stats():
     
     client_stats = {}
     for client_id, client in store.mqtt_clients.items():
+        latest_msg = None
+        if client.received_messages:
+            msg = client.received_messages[-1]
+            latest_msg = {
+                "topic": msg.topic,
+                "payload": msg.payload,
+                "qos": msg.qos,
+                "publisher_id": msg.publisher_id
+            }
         client_stats[client_id] = {
             "role": client.role,
             "connected": client.connected,
             "subscribed_topics": list(client.subscribed_topics),
-            "stats": client.stats
+            "stats": client.stats,
+            "latest_message": latest_msg
         }
     
     return {
@@ -272,6 +282,11 @@ def mqtt_packets():
         "packets": store.mqtt_packets_in_flight,
         "acks": store.mqtt_ack_packets
     }
+
+@app.get("/mac/packets")
+def mac_packets():
+    """Get MAC packets in flight for visualization"""
+    return {"packets": store.mac_packets_in_flight}
 
 @app.get("/mqtt/reconnections")
 def mqtt_reconnections():

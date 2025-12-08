@@ -29,7 +29,7 @@ class RoutingTable:
         return entry.next_hop if entry else None
     
     def update_route(self, dest: int, next_hop: int, metric: int, seq: int = 0) -> bool:
-        """Update route if new route is better or fresher. Returns True if updated."""
+        """Update route if new route is better. Returns True if updated."""
         existing = self.routes.get(dest)
         
         # Always update if new destination
@@ -37,13 +37,13 @@ class RoutingTable:
             self.routes[dest] = RouteEntry(dest, next_hop, metric, seq)
             return True
         
-        # Update if fresher sequence number
-        if seq > existing.seq:
+        # Update if better metric (shorter path)
+        if metric < existing.metric:
             self.routes[dest] = RouteEntry(dest, next_hop, metric, seq)
             return True
         
-        # Update if same seq but better metric
-        if seq == existing.seq and metric < existing.metric:
+        # Update if same metric but from same next_hop (refresh)
+        if metric == existing.metric and next_hop == existing.next_hop:
             self.routes[dest] = RouteEntry(dest, next_hop, metric, seq)
             return True
         
@@ -105,22 +105,24 @@ class NetworkLayer:
         if receiver_id not in self.routing_tables:
             return False
         
+        # Only process advertisements from direct neighbors
+        if ad.src not in neighbors:
+            return False
+        
         table = self.routing_tables[receiver_id]
         changed = False
         
         # Add/update route to the advertising node (direct neighbor)
-        if ad.src in neighbors:
-            if table.update_route(ad.src, ad.src, metric=1, seq=ad.seq):
-                changed = True
+        if table.update_route(ad.src, ad.src, metric=1, seq=0):
+            changed = True
         
         # Update routes to destinations advertised by this neighbor
         for dest, metric in ad.routes.items():
             if dest == receiver_id:  # Don't route to self
                 continue
-            if ad.src in neighbors:  # Only trust advertisements from neighbors
-                new_metric = metric + 1  # Add one hop
-                if table.update_route(dest, next_hop=ad.src, metric=new_metric, seq=ad.seq):
-                    changed = True
+            new_metric = metric + 1  # Add one hop
+            if table.update_route(dest, next_hop=ad.src, metric=new_metric, seq=0):
+                changed = True
         
         return changed
     
