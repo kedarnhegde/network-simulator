@@ -203,9 +203,12 @@ def mqtt_publish(publisher_id: int, topic: str, payload: str, qos: int = 0, reta
     broker = store.mqtt_brokers[broker_id]
     subscriber_count = len(broker.subscriptions.get(message.topic, {}))
     
-    # Queue publisher ACK if QoS 1
+    # Queue publisher ACK only if QoS 1 AND at least one subscriber has QoS 1
     if qos == 1:
-        store.mqtt_pending_pub_acks.append((publisher_id, broker_id, msg_id))
+        subscribers = broker.subscriptions.get(message.topic, {})
+        has_qos1_subscriber = any(sub_qos == 1 for sub_qos in subscribers.values())
+        if has_qos1_subscriber:
+            store.mqtt_pending_pub_acks.append((publisher_id, broker_id, msg_id))
     
     return {"ok": True, "msg_id": msg_id, "subscribers": subscriber_count}
 
