@@ -189,8 +189,14 @@ class Mac:
                 self.metrics.dequeued_ok += 1
                 self.metrics.bytes_ok += pkt.size_bytes
                 now_ms = self.slot_index * self.cfg.slot_ms
+                
+                # Add transmission time based on packet size and data rate
+                from .engine import PHY_PROFILES
+                data_rate_bps = PHY_PROFILES.get(pkt.kind, {}).get("data_rate", 54_000)
+                tx_time_ms = (pkt.size_bytes * 8 / data_rate_bps) * 1000
+                
                 self.metrics.rtt_samples += 1
-                self.metrics.rtt_ms_total += max(0.0, now_ms - pkt.t_created * 1000.0)
+                self.metrics.rtt_ms_total += max(0.0, now_ms - pkt.t_created * 1000.0 + tx_time_ms)
         elif self.forward_callback:
             # Intermediate hop - forward packet (not a duplicate, just forwarding)
             self.forward_callback(pkt)
