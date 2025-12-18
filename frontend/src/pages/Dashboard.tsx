@@ -19,7 +19,10 @@ export default function Dashboard() {
 
   return (
     <div className="p-4 max-w-[1280px] mx-auto">
-      <h1 className="text-2xl font-bold mb-4">IoT Network Simulator</h1>
+      <div className="flex items-center gap-3 mb-4">
+        <img src="/logo.png" alt="Logo" className="w-10 h-10" />
+        <h1 className="text-2xl font-bold">IoT/MQTT Network Simulator</h1>
+      </div>
       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-3 space-y-4">
           <Controls />

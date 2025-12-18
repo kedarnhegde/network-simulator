@@ -206,7 +206,7 @@ export default function TopologyCanvas({ nodes, width = 1200, height = 700, onDe
         setMqttPackets(data.packets || []);
         setAckPackets(data.acks || []);
       } catch (e) {
-        console.error('MQTT packets fetch error:', e);
+        // Ignore errors
       }
     }, 100);
     return () => clearInterval(interval);
@@ -214,7 +214,6 @@ export default function TopologyCanvas({ nodes, width = 1200, height = 700, onDe
   
   // Poll for MAC packets
   useEffect(() => {
-    console.log('MAC packets polling started, API_BASE:', API_BASE);
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`${API_BASE}/mac/packets`);
@@ -230,12 +229,9 @@ export default function TopologyCanvas({ nodes, width = 1200, height = 700, onDe
           progress: p.progress,
           kind: p.kind
         }));
-        if (macPackets.length > 0) {
-          console.log('MAC packets received:', macPackets.length);
-        }
         setPackets(macPackets);
       } catch (e) {
-        console.error('MAC packets fetch error:', e);
+        // Ignore errors
       }
     }, 100);
     return () => clearInterval(interval);
@@ -299,9 +295,6 @@ export default function TopologyCanvas({ nodes, width = 1200, height = 700, onDe
 
   return (
     <div className="relative rounded-2xl overflow-hidden shadow-xl border border-slate-700">
-      <div className="absolute top-2 left-2 bg-black/50 text-white text-xs p-2 rounded z-10">
-        MAC: {packets.length} | MQTT: {mqttPackets.length} | ACK: {ackPackets.length}
-      </div>
       <canvas 
         ref={ref} 
         width={width} 
