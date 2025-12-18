@@ -46,7 +46,7 @@ export default function Dashboard() {
       
       <footer className="mt-8 pt-6 border-t border-slate-700 text-center text-sm text-slate-400">
         <div className="mb-3">
-          <p className="mb-2">© {new Date().getFullYear()} Kedar Hegde. All rights reserved.</p>
+          <p className="mb-2">© {new Date().getFullYear()} Kedar Hegde, Antonio Hengel, Clinton Dela Cruz, Malea Balos. All rights reserved.</p>
           <div className="flex justify-center gap-4 flex-wrap">
             <a href="https://kedarnhegde.github.io/" target="_blank" rel="noopener noreferrer" className="hover:text-slate-200 transition-colors">🌐 Website</a>
             <a href="https://github.com/kedarnhegde" target="_blank" rel="noopener noreferrer" className="hover:text-slate-200 transition-colors">💻 GitHub</a>
