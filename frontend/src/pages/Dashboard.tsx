@@ -42,6 +42,20 @@ export default function Dashboard() {
           <RoutingPanel />
         </div>
       </div>
+      
+      <footer className="mt-8 pt-6 border-t border-slate-700 text-center text-sm text-slate-400">
+        <div className="mb-3">
+          <p className="mb-2">© {new Date().getFullYear()} Kedar Hegde. All rights reserved.</p>
+          <div className="flex justify-center gap-4 flex-wrap">
+            <a href="https://kedarnhegde.github.io/" target="_blank" rel="noopener noreferrer" className="hover:text-slate-200 transition-colors">🌐 Website</a>
+            <a href="https://github.com/kedarnhegde" target="_blank" rel="noopener noreferrer" className="hover:text-slate-200 transition-colors">💻 GitHub</a>
+            <a href="https://www.linkedin.com/in/kedar-hegde/" target="_blank" rel="noopener noreferrer" className="hover:text-slate-200 transition-colors">💼 LinkedIn</a>
+            <a href="mailto:kedarnhegde@gmail.com" className="hover:text-slate-200 transition-colors">📧 Email</a>
+            <a href="tel:+16195601247" className="hover:text-slate-200 transition-colors">📞 (619) 560-1247</a>
+          </div>
+        </div>
+        <p className="text-xs text-slate-500">Built for CS-576 | IoT/MQTT Network Simulator</p>
+      </footer>
     </div>
   );
 }
