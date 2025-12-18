@@ -33,10 +33,10 @@ export default function MqttPanel() {
 
   const subscribe = async () => {
     try {
-      const r = await api.post("/mqtt/subscribe", null, {
+      await api.post("/mqtt/subscribe", null, {
         params: { client_id: subscriberId, topic, qos }
       });
-      setMsg(`Subscribed: ${JSON.stringify(r.data)}`);
+      setMsg(`Subscribed successfully`);
       qc.invalidateQueries({ queryKey: ["mqtt-stats"] });
     } catch (e: any) {
       setMsg(`Error: ${e?.message}`);
@@ -45,10 +45,10 @@ export default function MqttPanel() {
 
   const publish = async () => {
     try {
-      const r = await api.post("/mqtt/publish", null, {
+      await api.post("/mqtt/publish", null, {
         params: { publisher_id: publisherId, topic, payload, qos, retained: false }
       });
-      setMsg(`Published: ${JSON.stringify(r.data)}`);
+      setMsg(`Published successfully`);
       qc.invalidateQueries({ queryKey: ["mqtt-stats"] });
     } catch (e: any) {
       setMsg(`Error: ${e?.message}`);
@@ -72,6 +72,10 @@ export default function MqttPanel() {
         setMsg("No broker found");
         return;
       }
+      const brokerId = Number(brokerIds[0]);
+      await api.post("/broker/relocate", null, {
+        params: { broker_id: brokerId, x: brokerX, y: brokerY }
+      });
       setMsg(`Broker relocated to (${brokerX}, ${brokerY})`);
       qc.invalidateQueries({ queryKey: ["nodes"] });
     } catch (e: any) {

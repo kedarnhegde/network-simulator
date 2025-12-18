@@ -7,6 +7,7 @@ import RoutingPanel from "../components/RoutingPanel";
 import TrafficForm from "../components/TrafficForm";
 import MqttPanel from "../components/MqttPanel";
 import ExperimentPanel from "../components/ExperimentPanel";
+import HelpModal from "../components/HelpModal";
 
 export default function Dashboard() {
   const { data: nodes } = useQuery({ queryKey: ["nodes"], queryFn: getNodes, refetchInterval: 1000 });
@@ -56,6 +57,8 @@ export default function Dashboard() {
         </div>
         <p className="text-xs text-slate-500">Built for CS-576 | IoT/MQTT Network Simulator</p>
       </footer>
+      
+      <HelpModal />
     </div>
   );
 }
