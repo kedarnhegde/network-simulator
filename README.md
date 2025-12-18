@@ -149,7 +149,7 @@ https://github.com/user-attachments/assets/83fa7c90-2d46-4f03-9f81-531c2caa0020
    - Repeat for 30 seconds
    - Watch node 5: 🟢 (connected) → 🔴 (out of range) → 🟢 (reconnected)
 8. **Test broker failover:
-   - In **Broker Failover** section: X: `150`, Y: `150`, Click **Relocate**
+   - In **Broker Failover** section: X: `200`, Y: `200`, Click **Relocate**
    - Watch **Reconnection Wave** for reconnection events
    - Relocate back: X: `100`, Y: `100`, Click **Relocate**
 

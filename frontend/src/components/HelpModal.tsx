@@ -85,9 +85,11 @@ export default function HelpModal() {
                     </ul>
                   </li>
                   <li>Publish messages: Publisher ID: 2, Topic: sensor/temp, Payload: 25, QoS: 0 → <strong>Publish</strong> (repeat 10 times)</li>
-                  <li>Test mobility: Watch node 5 move and reconnect</li>
+                  <li><strong>Test queue depth:</strong> Change QoS to 1, rapidly click <strong>Publish</strong> 20 times → Watch Broker Stats Queue depth increase then decrease</li>
+                  <li><strong>Test mobility:</strong> Subscribe node 5 (Subscriber ID: 5, Topic: sensor/temp) → Watch node 5 move (blue arrow ➤) → Publish every 2 seconds for 30 seconds → Watch node 5: 🟢 (connected) → 🔴 (out of range) → 🟢 (reconnected)</li>
+                  <li><strong>Test broker failover:</strong> In Broker Failover section, enter X: 200, Y: 200 → Click <strong>Relocate</strong> → Watch Reconnection Wave for reconnection events → Relocate back: X: 100, Y: 100</li>
                 </ol>
-                <p className="text-green-400 mt-2"><strong>Expected:</strong> Purple MQTT packets, green ACK packets for QoS 1, topic heatmap updates, mobile node reconnects</p>
+                <p className="text-green-400 mt-2"><strong>Expected:</strong> Purple MQTT packets, green ACK packets for QoS 1, topic heatmap updates, queue depth fluctuates, mobile node reconnects, broker moves and clients reconnect</p>
               </section>
 
               {/* Test 3 */}
