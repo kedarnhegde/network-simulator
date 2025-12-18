@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createNode, deleteNode, startSim, pauseSim, resetSim } from "../api/endpoints";
+import { createNode, startSim, pauseSim, resetSim } from "../api/endpoints";
 import type { Phy, Role } from "../api/types";
 
 export default function Controls() {

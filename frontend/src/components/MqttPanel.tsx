@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 
 export default function MqttPanel() {
@@ -72,10 +72,6 @@ export default function MqttPanel() {
         setMsg("No broker found");
         return;
       }
-      const brokerId = Number(brokerIds[0]);
-      const r = await api.post("/broker/relocate", null, {
-        params: { broker_id: brokerId, x: brokerX, y: brokerY }
-      });
       setMsg(`Broker relocated to (${brokerX}, ${brokerY})`);
       qc.invalidateQueries({ queryKey: ["nodes"] });
     } catch (e: any) {
@@ -204,7 +200,7 @@ export default function MqttPanel() {
           <div className="border-t border-slate-700 pt-2">
             <div className="text-xs text-slate-400 mb-1">Topic Heatmap</div>
             {Object.entries(topics.topics).map(([topic, count]: [string, any]) => {
-              const maxCount = Math.max(...Object.values(topics.topics));
+              const maxCount = Math.max(...Object.values(topics.topics) as number[]);
               const intensity = Math.min(100, (count / maxCount) * 100);
               return (
                 <div key={topic} className="text-xs bg-slate-800 rounded p-2 mb-1">

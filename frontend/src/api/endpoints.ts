@@ -3,7 +3,7 @@ import type { NodeView, Metrics, RoutingTable, Role, Phy } from "./types";
 
 export const getHealth = () => api.get("/health").then(r=>r.data);
 export const getNodes = () => api.get<NodeView[]>("/nodes").then(r=>r.data);
-export const createNode = (n:{role:Role; phy:Phy; x:number; y:number}) =>
+export const createNode = (n:{role:Role; phy:Phy; x:number; y:number; mobile?:boolean; speed?:number}) =>
   api.post<NodeView>("/nodes", n).then(r=>r.data);
 export const deleteNode = (id:number) =>
   api.delete(`/nodes/${id}`).then(r=>r.data);
