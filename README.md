@@ -2,6 +2,10 @@
 
 https://network-simulator-nu.vercel.app/
 
+<img width="1460" height="801" alt="Screenshot 2025-12-18 at 14 48 08" src="https://github.com/user-attachments/assets/bce3134e-afd0-44f7-961a-b39c505087e3" />
+
+
+
 # 🛰️ Network Simulator
 
 A modular **IoT/MQTT network simulator** built for **CS-576**.  
