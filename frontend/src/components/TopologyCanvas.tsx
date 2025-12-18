@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { NodeView, PacketInFlight } from "../api/types";
+import { API_BASE } from "../api/client";
 
 const ROLE_COLOR: Record<string, string> = {
   sensor: "#22c55e",     // green-500 (brighter)
@@ -200,7 +201,7 @@ export default function TopologyCanvas({ nodes, width = 1200, height = 700, onDe
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const res = await fetch("http://localhost:8000/mqtt/packets");
+        const res = await fetch(`${API_BASE}/mqtt/packets`);
         const data = await res.json();
         setMqttPackets(data.packets || []);
         setAckPackets(data.acks || []);
@@ -215,7 +216,7 @@ export default function TopologyCanvas({ nodes, width = 1200, height = 700, onDe
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const res = await fetch("http://localhost:8000/mac/packets");
+        const res = await fetch(`${API_BASE}/mac/packets`);
         const data = await res.json();
         const macPackets = (data.packets || []).map((p: any) => ({
           id: `${p.src_id}-${p.dst_id}-${p.progress}`,
