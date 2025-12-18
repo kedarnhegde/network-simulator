@@ -1,3 +1,7 @@
+# Live Link
+
+https://network-simulator-nu.vercel.app/
+
 # 🛰️ Network Simulator
 
 A modular **IoT/MQTT network simulator** built for **CS-576**.  
